@@ -31,14 +31,14 @@ class LocalOepoSolver(BaseSolver):
         self,
         host: str = None,
         api_path: str = None,
-        gear: int = None,
+        gear: int = 2,
     ):
         """Initialize local OEPO solver.
 
         Args:
             host: Local solver host URL. Defaults to http://192.168.137.100:5001.
             api_path: API path for the solver. Defaults to /api/v1/job/.
-            gear: Computation gear level. Controls computation intensity.
+            gear: Computation gear level. Controls computation intensity. Defaults to 2.
         """
         super().__init__(gear=gear)
 

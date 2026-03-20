@@ -174,16 +174,17 @@ class CloudClient(BaseClient):
 
             # Get task status
             response = self.get_task(task_id)
-            # API returns task object directly, not wrapped in "data"
-            status = response.get("status")
+            # API wraps task data inside "data" key
+            task_info = response.get("data", response)
+            status = task_info.get("status")
 
             # Check if task is completed
             if status in completed_statuses:
                 # Get raw result data
-                result_data = response.get("result")
+                result_data = task_info.get("result")
                 if result_data is None:
                     # Task might have failed
-                    message = response.get("message", "Task failed")
+                    message = task_info.get("message") or response.get("message", "Task failed")
                     raise ClientError(f"Task failed: {message}")
 
                 # Convert to unified Result format

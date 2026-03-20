@@ -169,12 +169,14 @@ class CloudSolver(BaseSolver):
                 raise ClientError(f"Task polling timeout after {self._timeout}s")
 
             response = self._get_task(task_id)
-            status = response.get("status")
+            # API wraps task data inside "data" key
+            task_info = response.get("data", response)
+            status = task_info.get("status")
 
             if status in completed_statuses:
-                result_data = response.get("result")
+                result_data = task_info.get("result")
                 if result_data is None:
-                    message = response.get("message", "Task failed")
+                    message = task_info.get("message") or response.get("message", "Task failed")
                     raise ClientError(f"Task failed: {message}")
 
                 return Result.from_cloud(result_data, task_id)

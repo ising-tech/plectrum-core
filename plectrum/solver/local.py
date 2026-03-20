@@ -138,6 +138,8 @@ class LocalSolver(BaseSolver):
 
                 T *= self._cooling_rate
 
+        # Recalculate exact energy from best_config to avoid floating-point drift
+        best_energy = float(best_config @ Q @ best_config)
         return best_energy, best_config
 
     # ------------------------------------------------------------------
@@ -187,6 +189,8 @@ class LocalSolver(BaseSolver):
 
                 T *= self._cooling_rate
 
+        # Recalculate exact energy from best_config to avoid floating-point drift
+        best_energy = float(best_config @ J @ best_config)
         return best_energy, best_config
 
     # ------------------------------------------------------------------

@@ -156,10 +156,13 @@ class Result:
 
             {"energy": ..., "spin_config": [...], "oepo_time": "0.134s", ...}
         """
-        time_str = raw_result.get("oepo_time")
+        time_val = raw_result.get("oepo_time")
         time_seconds = None
-        if time_str and isinstance(time_str, str):
-            time_seconds = float(time_str.replace("s", ""))
+        if time_val is not None:
+            if isinstance(time_val, str):
+                time_seconds = float(time_val.replace("s", ""))
+            else:
+                time_seconds = float(time_val)
 
         import time as time_module
 
