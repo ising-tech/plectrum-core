@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, Dict
 
 if TYPE_CHECKING:
     from plectrum.client.base import BaseClient
+    from plectrum.result import Result
 
 
 class BaseTask(ABC):
@@ -42,23 +43,21 @@ class BaseTask(ABC):
         """
         pass
 
-    def solve(self, solver: "BaseClient") -> Dict[str, Any]:
+    def solve(self, solver: "BaseClient") -> "Result":
         """Submit task to solver for solving.
 
         Args:
             solver: Solver client (CloudClient, LocalClient, etc.)
 
         Returns:
-            Result dictionary from solver
+            Result object from solver
         """
         task_data = self.to_dict()
         result = solver.solve(task_data)
 
-        # Store task_id if available
-        if "task_id" in result:
-            self._task_id = result["task_id"]
-        elif "data" in result and "taskId" in result["data"]:
-            self._task_id = result["data"]["taskId"]
+        # Store task_id from the Result object
+        if result.task_id:
+            self._task_id = result.task_id
 
         return result
 

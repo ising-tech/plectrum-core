@@ -1,7 +1,10 @@
 """Base client class for Plectrum SDK."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
+
+if TYPE_CHECKING:
+    from plectrum.result import Result
 
 
 class BaseClient(ABC):
@@ -36,14 +39,14 @@ class BaseClient(ABC):
         return self._host
 
     @abstractmethod
-    def solve(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
+    def solve(self, task_data: Dict[str, Any]) -> "Result":
         """Submit a task for solving.
 
         Args:
             task_data: Task data dictionary
 
         Returns:
-            Result dictionary from the solver
+            Result object from the solver
         """
         pass
 

@@ -1,5 +1,6 @@
 """Cloud client for Plectrum SDK."""
 
+import configparser
 import os
 import time
 import uuid
@@ -57,6 +58,38 @@ class CloudClient(BaseClient):
         self._timeout = timeout
         self._session = requests.Session()
 
+    @classmethod
+    def from_config(
+        cls,
+        config_path: str = "config/cloud.ini",
+        **kwargs,
+    ) -> "CloudClient":
+        """Create CloudClient from a config file.
+
+        Args:
+            config_path: Path to the INI config file.
+                         Expected sections and keys::
+
+                             [CLOUD]
+                             HOST: https://api.isingq.com
+                             API_KEY: your-api-key
+
+            **kwargs: Additional keyword arguments passed to the constructor
+                      (e.g. poll_interval, timeout).
+
+        Returns:
+            CloudClient instance configured from the file.
+        """
+        config = configparser.ConfigParser()
+        config.read(config_path)
+        api_key = config.get("CLOUD", "API_KEY", fallback=None)
+        host = config.get("CLOUD", "HOST", fallback=None)
+        if api_key is not None:
+            api_key = api_key.strip() or None
+        if host is not None:
+            host = host.strip() or None
+        return cls(api_key=api_key, host=host, **kwargs)
+
     def _request(
         self,
         method: str,
@@ -94,7 +127,7 @@ class CloudClient(BaseClient):
         except requests.exceptions.RequestException as e:
             raise ClientError(f"API request failed: {e}")
 
-    def solve(self, task_data: dict) -> dict:
+    def solve(self, task_data: dict) -> Result:
         """Submit task to cloud solver and wait for result.
 
         This method:
@@ -106,7 +139,7 @@ class CloudClient(BaseClient):
             task_data: Task data dictionary
 
         Returns:
-            Result dictionary from cloud solver (unified format)
+            Result object from cloud solver
 
         Raises:
             ClientError: If task fails or timeout
@@ -149,14 +182,14 @@ class CloudClient(BaseClient):
         # Poll for result
         return self._poll_for_result(task_id)
 
-    def _poll_for_result(self, task_id: str) -> dict:
+    def _poll_for_result(self, task_id: str) -> Result:
         """Poll for task result until completion.
 
         Args:
             task_id: Task ID
 
         Returns:
-            Result dictionary in unified format
+            Result object
 
         Raises:
             ClientError: If timeout or task fails
@@ -187,13 +220,7 @@ class CloudClient(BaseClient):
                     raise ClientError(f"Task failed: {message}")
 
                 # Convert to unified Result format
-                result = Result.from_cloud(result_data, task_id)
-                
-                return {
-                    "result": result.to_dict(),
-                    "task_id": task_id,
-                    "status": status,
-                }
+                return Result.from_cloud(result_data, task_id)
 
             # Wait before next poll
             time.sleep(self._poll_interval)

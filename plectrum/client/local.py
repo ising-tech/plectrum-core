@@ -1,5 +1,6 @@
 """Local client for Plectrum SDK."""
 
+import configparser
 import requests
 
 from plectrum.client.base import BaseClient
@@ -45,24 +46,47 @@ class LocalClient(BaseClient):
         self._url = host + api_path
         self._session = requests.Session()
 
+    @classmethod
+    def from_config(
+        cls,
+        config_path: str = "config/cloud.ini",
+        **kwargs,
+    ) -> "LocalClient":
+        """Create LocalClient from a config file.
+
+        Args:
+            config_path: Path to the INI config file.
+                         Expected sections and keys::
+
+                             [LOCAL]
+                             HOST: http://192.168.137.100:5001
+
+            **kwargs: Additional keyword arguments passed to the constructor
+                      (e.g. api_path).
+
+        Returns:
+            LocalClient instance configured from the file.
+        """
+        config = configparser.ConfigParser()
+        config.read(config_path)
+        host = config.get("LOCAL", "HOST", fallback=None)
+        if host is not None:
+            host = host.strip() or None
+        return cls(host=host, **kwargs)
+
     @property
     def api_path(self) -> str:
         """Get API path."""
         return self._api_path
 
-    def solve(self, task_data: dict) -> dict:
+    def solve(self, task_data: dict) -> Result:
         """Submit task to local solver.
 
         Args:
             task_data: Task data dictionary
 
         Returns:
-            Result dictionary in unified format:
-            {
-                "result": {...},
-                "task_id": "xxx",
-                "status": 1
-            }
+            Result object from the local solver
         """
         # Get matrix data from task_data
         csv_string = task_data.get("csv_string")
@@ -103,18 +127,11 @@ class LocalClient(BaseClient):
             response.raise_for_status()
             raw_result = response.json()
 
-            # Convert to unified format using Result class
+            # Convert to unified Result format using Result class
             # Local solver returns: {job_name: "...", result: {...}}
             task_id = raw_result.get("job_name")
-            
-            # Create unified Result
-            result = Result.from_local(raw_result, task_id)
-            
-            return {
-                "result": result.to_dict(),
-                "task_id": task_id,
-                "status": 1,  # Completed status
-            }
+
+            return Result.from_local(raw_result, task_id)
         except requests.exceptions.RequestException as e:
             raise ClientError(f"Local solver request failed: {e}")
 
