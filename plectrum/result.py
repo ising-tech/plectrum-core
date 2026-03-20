@@ -2,89 +2,116 @@
 
 
 class Result:
-    """统一的结果类，用于标准化不同求解器的返回结果。
+    """Unified result class that standardizes solver outputs.
 
-    属性:
-        energy: 能量值
-        spin_config: 自旋配置列表
-        time: 计算时间（秒）
-        task_id: 任务ID
-        task_name: 任务名称
-        ok: 是否成功
-        msg: 消息
-        timestamp: 时间戳（毫秒）
+    Attributes:
+        energy: Energy value of the solution
+        spin_config: Spin / binary configuration list
+        oepo_time: Solver computation time (seconds)
+        e2e_time: End-to-end time including overhead (seconds)
+        task_id: Task ID
+        task_name: Task name
+        name: Alias for task_name
+        ok: Whether the solve succeeded
+        msg: Status message
+        timestamp: Timestamp in milliseconds
     """
 
     def __init__(
         self,
         energy: float = None,
         spin_config: list = None,
-        time: float = None,
+        oepo_time: float = None,
+        e2e_time: float = None,
         task_id: str = None,
         task_name: str = None,
         ok: bool = True,
         msg: str = None,
         timestamp: int = None,
+        # Backward compat alias
+        time: float = None,
     ):
         self._energy = energy
         self._spin_config = spin_config
-        self._time = time
+        # oepo_time takes precedence; fall back to legacy 'time' param
+        self._oepo_time = oepo_time if oepo_time is not None else time
+        self._e2e_time = e2e_time
         self._task_id = task_id
         self._task_name = task_name
         self._ok = ok
         self._msg = msg
         self._timestamp = timestamp
 
+    # ------------------------------------------------------------------
+    # Properties
+    # ------------------------------------------------------------------
+
     @property
     def energy(self) -> float:
-        """获取能量值。"""
+        """Energy value of the solution."""
         return self._energy
 
     @property
     def spin_config(self) -> list:
-        """获取自旋配置列表。"""
+        """Spin / binary configuration list."""
         return self._spin_config
 
     @property
+    def oepo_time(self) -> float:
+        """Solver computation time (seconds)."""
+        return self._oepo_time
+
+    @property
+    def e2e_time(self) -> float:
+        """End-to-end time including all overhead (seconds)."""
+        return self._e2e_time
+
+    @property
     def time(self) -> float:
-        """获取计算时间（秒）。"""
-        return self._time
+        """Computation time (seconds). Alias for oepo_time."""
+        return self._oepo_time
 
     @property
     def task_id(self) -> str:
-        """获取任务ID。"""
+        """Task ID."""
         return self._task_id
 
     @property
     def task_name(self) -> str:
-        """获取任务名称。"""
+        """Task name."""
+        return self._task_name
+
+    @property
+    def name(self) -> str:
+        """Task name (convenience alias)."""
         return self._task_name
 
     @property
     def ok(self) -> bool:
-        """获取是否成功。"""
+        """Whether the solve succeeded."""
         return self._ok
 
     @property
     def msg(self) -> str:
-        """获取消息。"""
+        """Status message."""
         return self._msg
 
     @property
     def timestamp(self) -> int:
-        """获取时间戳（毫秒）。"""
+        """Timestamp in milliseconds."""
         return self._timestamp
 
-    def to_dict(self) -> dict:
-        """转换为字典格式。
+    # ------------------------------------------------------------------
+    # Serialization
+    # ------------------------------------------------------------------
 
-        Returns:
-            字典格式的结果
-        """
+    def to_dict(self) -> dict:
+        """Convert to dictionary."""
         return {
             "energy": self._energy,
             "spin_config": self._spin_config,
-            "time": self._time,
+            "oepo_time": self._oepo_time,
+            "e2e_time": self._e2e_time,
             "task_id": self._task_id,
             "task_name": self._task_name,
             "ok": self._ok,
@@ -92,27 +119,28 @@ class Result:
             "timestamp": self._timestamp,
         }
 
+    # ------------------------------------------------------------------
+    # Factory methods
+    # ------------------------------------------------------------------
+
     @classmethod
     def from_local(cls, raw_result: dict, task_id: str) -> "Result":
-        """从本地求解器的原始结果创建 Result。
+        """Create Result from local OEPO solver raw response.
 
-        Args:
-            raw_result: 本地求解器返回的原始结果
-            task_id: 任务ID
+        Expected format::
 
-        Returns:
-            Result 实例
+            {"job_name": "...", "result": {"energy": ..., "isingCalcMs": ...,
+             "ok": ..., "spin_config": [...], "taskName": "...", "ts": ...}}
         """
         result_data = raw_result.get("result", {})
 
-        # 转换时间：毫秒 -> 秒
         time_ms = result_data.get("isingCalcMs")
         time_seconds = time_ms / 1000.0 if time_ms is not None else None
 
         return cls(
             energy=result_data.get("energy"),
             spin_config=result_data.get("spin_config"),
-            time=time_seconds,
+            oepo_time=time_seconds,
             task_id=task_id,
             task_name=result_data.get("taskName"),
             ok=result_data.get("ok", True),
@@ -122,42 +150,46 @@ class Result:
 
     @classmethod
     def from_cloud(cls, raw_result: dict, task_id: str) -> "Result":
-        """从云求解器的原始结果创建 Result。
+        """Create Result from cloud solver raw response.
 
-        Args:
-            raw_result: 云求解器返回的原始结果
-            task_id: 任务ID
+        Expected format::
 
-        Returns:
-            Result 实例
+            {"energy": ..., "spin_config": [...], "oepo_time": "0.134s", ...}
         """
-        # 转换时间：字符串如 "0.134s" -> float
         time_str = raw_result.get("oepo_time")
         time_seconds = None
         if time_str and isinstance(time_str, str):
             time_seconds = float(time_str.replace("s", ""))
 
-        # Cloud 缺少的字段填入默认值
         import time as time_module
 
         return cls(
             energy=raw_result.get("energy"),
             spin_config=raw_result.get("spin_config"),
-            time=time_seconds,
+            oepo_time=time_seconds,
             task_id=task_id,
-            task_name=None,  # Cloud API 不返回 task_name
-            ok=True,  # 默认为成功
-            msg="success",  # 默认为成功
-            timestamp=int(time_module.time() * 1000),  # 当前时间戳
+            task_name=None,
+            ok=True,
+            msg="success",
+            timestamp=int(time_module.time() * 1000),
         )
+
+    # ------------------------------------------------------------------
+    # Display
+    # ------------------------------------------------------------------
 
     def __repr__(self) -> str:
         return (
             f"Result(energy={self._energy}, "
             f"spin_config={self._spin_config}, "
-            f"time={self._time}, "
+            f"oepo_time={self._oepo_time}, "
+            f"e2e_time={self._e2e_time}, "
             f"task_id={self._task_id})"
         )
 
     def __str__(self) -> str:
-        return f"Result(energy={self._energy}, time={self._time}s)"
+        return (
+            f"Result(energy={self._energy}, "
+            f"oepo_time={self._oepo_time}s, "
+            f"e2e_time={self._e2e_time}s)"
+        )

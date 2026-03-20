@@ -1,6 +1,7 @@
 """General task class for Plectrum SDK."""
 
-from typing import Any, Dict, Optional
+import numpy as np
+from typing import Any, Dict, Optional, Union
 
 from plectrum.task.base import BaseTask
 from plectrum.matrix import Matrix
@@ -11,11 +12,23 @@ class GeneralTask(BaseTask):
 
     This task type is used for general optimization problems
     with J matrix and H vector inputs.
+
+    Example:
+        # From Matrix object
+        matrix = Matrix.from_csv("data.csv")
+        task = GeneralTask(name="my_task", data=matrix, question_type=QUBO_PROBLEM)
+
+        # From numpy array
+        Q = np.random.randn(10, 10)
+        task = GeneralTask(name="my_task", data=Q, question_type=QUBO_PROBLEM)
+
+        result = task.solve(solver=LocalSolver())
     """
 
     def __init__(
         self,
         name: str = None,
+        data: Union[np.ndarray, "Matrix", None] = None,
         matrix: Optional[Matrix] = None,
         computer_type_id: int = None,
         question_type: int = None,
@@ -28,15 +41,27 @@ class GeneralTask(BaseTask):
 
         Args:
             name: Task name
-            matrix: Input matrix data
-            computer_type_id: Computer type ID
-            question_type: Question type
+            data: Input data — numpy array or Matrix object.
+                  Convenience alternative to ``matrix`` parameter.
+            matrix: Input matrix data (legacy parameter).
+            computer_type_id: Computer type / gear ID
+            question_type: Question type (QUBO_PROBLEM=1 or ISING_PROBLEM=2)
             calculate_count: Calculate count
             post_process: Post process flag
             input_j_file: Input J file URL (for cloud)
             input_h_file: Input H file URL (for cloud)
         """
         super().__init__(name=name)
+
+        # Accept data as numpy array or Matrix
+        if data is not None and matrix is None:
+            if isinstance(data, Matrix):
+                matrix = data
+            elif isinstance(data, np.ndarray):
+                matrix = Matrix.from_array(data)
+            else:
+                matrix = Matrix.from_array(np.array(data))
+
         self._matrix = matrix
         self._computer_type_id = computer_type_id
         self._question_type = question_type
@@ -86,7 +111,7 @@ class GeneralTask(BaseTask):
         Returns:
             Task data as dictionary
         """
-        # Build payload for cloud
+        # Build payload for cloud — include all fields (API expects full schema)
         payload = {
             "name": self._name,
             "computerTypeId": self._computer_type_id,

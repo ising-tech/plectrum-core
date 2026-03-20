@@ -3,6 +3,7 @@
 
 from plectrum.matrix import Matrix
 from plectrum.client import BaseClient, CloudClient, LocalClient
+from plectrum.solver import BaseSolver, CloudSolver, LocalOepoSolver, LocalSolver
 from plectrum.task import BaseTask, GeneralTask, TemplateTask
 from plectrum.result import Result
 from plectrum.const import (
@@ -15,12 +16,17 @@ from plectrum.exceptions import (
     ClientError,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     # Matrix
     "Matrix",
-    # Client
+    # Solvers (new API)
+    "BaseSolver",
+    "CloudSolver",
+    "LocalOepoSolver",
+    "LocalSolver",
+    # Clients (legacy, backward-compatible)
     "BaseClient",
     "CloudClient",
     "LocalClient",
