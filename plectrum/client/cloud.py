@@ -4,7 +4,6 @@ import os
 import time
 import uuid
 import requests
-from typing import Optional
 
 from plectrum.client.base import BaseClient
 from plectrum.const import (
@@ -19,6 +18,8 @@ from plectrum.result import Result
 # Default polling configuration
 DEFAULT_POLL_INTERVAL = 2  # seconds
 DEFAULT_TIMEOUT = 300  # seconds (5 minutes)
+DEFAULT_PUBLIC_CLOUD_GEAR = 2
+DEFAULT_ACTUAL_CLOUD_COMPUTER_TYPE_ID = 1
 
 
 class CloudClient(BaseClient):
@@ -115,6 +116,13 @@ class CloudClient(BaseClient):
         
         # Get payload and potentially upload file
         payload = task_data.get("payload", {}).copy()
+        raw_computer_type_id = payload.get("computerTypeId")
+        if raw_computer_type_id is None:
+            raw_computer_type_id = DEFAULT_PUBLIC_CLOUD_GEAR
+        if raw_computer_type_id == DEFAULT_PUBLIC_CLOUD_GEAR:
+            payload["computerTypeId"] = DEFAULT_ACTUAL_CLOUD_COMPUTER_TYPE_ID
+        else:
+            payload["computerTypeId"] = raw_computer_type_id
         csv_string = task_data.get("csv_string")
         
         # If csv_string is provided, upload to OSS and get file URL
@@ -147,9 +155,9 @@ class CloudClient(BaseClient):
             raise ClientError("Failed to get task ID from response")
 
         # Poll for result
-        return self._poll_for_result(task_id)
+        return self._poll_for_result(task_id, task_name=payload.get("name"))
 
-    def _poll_for_result(self, task_id: str) -> dict:
+    def _poll_for_result(self, task_id: str, task_name: str = None) -> dict:
         """Poll for task result until completion.
 
         Args:
@@ -167,7 +175,15 @@ class CloudClient(BaseClient):
         while True:
             # Check timeout
             elapsed = time.time() - start_time
+            if task_name and elapsed > min(30, self._timeout):
+                recent_result = self._get_recent_completed_task_result(task_name)
+                if recent_result is not None:
+                    return recent_result
             if elapsed > self._timeout:
+                if task_name:
+                    recent_result = self._get_recent_completed_task_result(task_name)
+                    if recent_result is not None:
+                        return recent_result
                 raise ClientError(
                     f"Task polling timeout after {self._timeout} seconds"
                 )
@@ -179,24 +195,40 @@ class CloudClient(BaseClient):
 
             # Check if task is completed
             if status in completed_statuses:
-                # Get raw result data
-                result_data = response.get("result")
-                if result_data is None:
-                    # Task might have failed
-                    message = response.get("message", "Task failed")
-                    raise ClientError(f"Task failed: {message}")
-
-                # Convert to unified Result format
-                result = Result.from_cloud(result_data, task_id)
-                
-                return {
-                    "result": result.to_dict(),
-                    "task_id": task_id,
-                    "status": status,
-                }
+                return self._normalize_cloud_result(response, task_id)
 
             # Wait before next poll
             time.sleep(self._poll_interval)
+
+    def _normalize_cloud_result(self, response: dict, task_id: str) -> dict:
+        """Normalize a completed cloud task response."""
+        result_data = response.get("result")
+        if result_data is None:
+            message = response.get("message", "Task failed")
+            raise ClientError(f"Task failed: {message}")
+
+        result = Result.from_cloud(result_data, task_id)
+        return {
+            "result": result.to_dict(),
+            "task_id": task_id,
+            "status": response.get("status"),
+        }
+
+    def _get_recent_completed_task_result(self, task_name: str) -> dict | None:
+        """Find the latest completed task with the same name and return its result."""
+        task_list = self.get_task_list(page_no=1, page_size=20)
+        records = task_list.get("records", [])
+        for record in records:
+            if record.get("name") != task_name:
+                continue
+            task_id = record.get("id")
+            if not task_id:
+                continue
+            response = self.get_task(task_id)
+            if response.get("result") is None:
+                continue
+            return self._normalize_cloud_result(response, task_id)
+        return None
 
     def _create_general_task(self, task_data: dict) -> dict:
         """Create general task.
@@ -283,21 +315,6 @@ class CloudClient(BaseClient):
         )
         signature_data = signature_response["data"]
 
-        # Step 2: Build OSS upload form data
-        form_data = {}
-        file_uuid = str(uuid.uuid4())[:8]
-        file_key = f"{file_uuid}/{original_filename}"
-
-        form_data["success_action_status"] = "200"
-        form_data["policy"] = signature_data["policy"]
-        form_data["x-oss-signature"] = signature_data["signature"]
-        form_data["x-oss-signature-version"] = "OSS4-HMAC-SHA256"
-        form_data["x-oss-credential"] = signature_data["x_oss_credential"]
-        form_data["x-oss-date"] = signature_data["x_oss_date"]
-        form_data["key"] = file_key
-        form_data["x-oss-security-token"] = signature_data["security_token"]
-
-        # Step 3: Upload file
         try:
             if isinstance(file_path_or_bytes, str):
                 with open(file_path_or_bytes, "rb") as f:
@@ -308,6 +325,21 @@ class CloudClient(BaseClient):
                     )
             else:
                 file_data = file_path_or_bytes
+
+            # Step 2: Build OSS upload form data
+            form_data = {}
+            file_uuid = str(uuid.uuid4())[:8]
+            file_key = f"{file_uuid}/{original_filename}"
+
+            form_data["success_action_status"] = "200"
+            form_data["policy"] = signature_data["policy"]
+            form_data["x-oss-signature"] = signature_data["signature"]
+            form_data["x-oss-signature-version"] = "OSS4-HMAC-SHA256"
+            form_data["x-oss-credential"] = signature_data["x_oss_credential"]
+            form_data["x-oss-date"] = signature_data["x_oss_date"]
+            form_data["key"] = file_key
+            form_data["x-oss-security-token"] = signature_data["security_token"]
+
 
             files = {"file": (original_filename, file_data)}
             headers = {}

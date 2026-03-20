@@ -17,6 +17,7 @@ class TemplateTask(BaseTask):
         name: str = None,
         template_id: int = None,
         computer_type_id: int = None,
+        gear: int = None,
         payload: str = None,
     ):
         """Initialize template task.
@@ -25,11 +26,20 @@ class TemplateTask(BaseTask):
             name: Task name
             template_id: Template ID
             computer_type_id: Computer type ID
+            gear: Local/cloud gear alias, equivalent to computer_type_id
             payload: Template payload data
         """
         super().__init__(name=name)
+        if (
+            gear is not None
+            and computer_type_id is not None
+            and gear != computer_type_id
+        ):
+            raise ValueError("gear and computer_type_id must match when both set")
         self._template_id = template_id
-        self._computer_type_id = computer_type_id
+        self._computer_type_id = (
+            gear if gear is not None else computer_type_id
+        )
         self._payload = payload
 
     @property
@@ -40,6 +50,11 @@ class TemplateTask(BaseTask):
     @property
     def computer_type_id(self) -> Optional[int]:
         """Get computer type ID."""
+        return self._computer_type_id
+
+    @property
+    def gear(self) -> Optional[int]:
+        """Get gear alias for local/cloud solver selection."""
         return self._computer_type_id
 
     @property
@@ -81,6 +96,6 @@ class TemplateTask(BaseTask):
         return cls(
             name=payload.get("name"),
             template_id=payload.get("templateId"),
-            computer_type_id=payload.get("computerTypeId"),
+            gear=payload.get("computerTypeId"),
             payload=payload.get("payload"),
         )

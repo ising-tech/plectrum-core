@@ -18,7 +18,14 @@ pip install plectrum-core
 ## Quick Start
 
 ```python
-from plectrum import CloudClient, LocalClient, GeneralTask, Matrix
+from plectrum import (
+    CloudSolver,
+    GeneralTask,
+    LocalOepoSolver,
+    LocalSolver,
+    Matrix,
+    QUBO_PROBLEM,
+)
 
 # Create matrix from CSV
 matrix = Matrix.from_csv("data.csv")
@@ -27,20 +34,29 @@ matrix = Matrix.from_csv("data.csv")
 task = GeneralTask(
     name="my-task",
     matrix=matrix,
-    computer_type_id=1,
-    question_type=1,
+    gear=1,
+    question_type=QUBO_PROBLEM,
 )
 
-# Use cloud solver
-cloud_solver = CloudClient(api_key="your-api-key")
-cloud_result = task.solve(solver=cloud_solver)
+# Use traditional local solver
+local_result = task.solve(solver=LocalSolver())
 
-# Or use local solver
-local_solver = LocalClient(host="http://192.168.137.100:5001")
-local_result = task.solve(solver=local_solver)
+# Or use local OEPO solver service
+local_oepo_result = task.solve(
+    solver=LocalOepoSolver(host="http://192.168.137.100:5001")
+)
 
-print(f"Cloud result: {cloud_result}")
-print(f"Local result: {local_result}")
+# Or use cloud solver (defaults to gear=2 if task gear is omitted)
+cloud_task = GeneralTask(
+    name="my-cloud-task",
+    matrix=matrix,
+    question_type=QUBO_PROBLEM,
+)
+cloud_result = cloud_task.solve(solver=CloudSolver(api_key="your-api-key"))
+
+print(local_result.energy)
+print(local_oepo_result.energy)
+print(cloud_result.energy)
 ```
 
 ## Configuration
@@ -56,17 +72,36 @@ You can provide API key in three ways:
 
 2. **Direct Parameter**:
    ```python
-   cloud_solver = CloudClient(api_key="your-api-key")
+   from plectrum import CloudSolver
+
+   cloud_solver = CloudSolver(api_key="your-api-key")
    ```
 
 ### Local Solver Host
 
 ```python
+from plectrum import LocalOepoSolver
+
 # Use default local host
-local_solver = LocalClient()
+local_solver = LocalOepoSolver()
 
 # Or specify custom host
-local_solver = LocalClient(host="http://192.168.137.100:5001")
+custom_local_solver = LocalOepoSolver(host="http://192.168.137.100:5001")
+```
+
+### Gear Selection
+
+- Local OEPO solver preserves the `gear` set on `GeneralTask` / `TemplateTask`
+- Cloud solver keeps the same interface, and when `gear` is omitted it defaults to `2`
+
+```python
+import numpy as np
+
+from plectrum import GeneralTask, Matrix
+
+matrix = Matrix.from_array(np.array([[1.0, -2.0], [-2.0, 1.0]]))
+task = GeneralTask(name="local-task", matrix=matrix, gear=1)
+cloud_task = GeneralTask(name="cloud-task", matrix=matrix)
 ```
 
 ## API Reference
@@ -77,50 +112,56 @@ local_solver = LocalClient(host="http://192.168.137.100:5001")
 from plectrum import Matrix
 import numpy as np
 
+csv_string = "1,2\n3,4\n"
+
 # From CSV file
-matrix = Matrix.from_csv("data.csv")
+matrix_from_file = Matrix.from_csv("data.csv")
 
 # From CSV string
-matrix = Matrix.from_csv_string(csv_string)
+matrix_from_string = Matrix.from_csv_string(csv_string)
 
 # From numpy array
 array = np.array([[1, 2], [3, 4]])
-matrix = Matrix.from_array(array)
+matrix_from_array = Matrix.from_array(array)
 ```
 
 ### Client
 
 ```python
-from plectrum import CloudClient, LocalClient
+from plectrum import CloudSolver, LocalOepoSolver, LocalSolver
 
-# Cloud client (uses default cloud API)
-cloud = CloudClient()
+# Traditional local solver (in process)
+local = LocalSolver()
 
-# Cloud client with custom API key
-cloud = CloudClient(api_key="your-key")
+# Cloud solver (uses default cloud API)
+cloud = CloudSolver(api_key="your-key")
 
-# Local client (uses default local host)
-local = LocalClient()
+# Local OEPO solver (uses default local host)
+local_oepo = LocalOepoSolver()
 
-# Local client with custom host
-local = LocalClient(host="http://192.168.137.100:5001")
+# Local OEPO solver with custom host
+custom_local_oepo = LocalOepoSolver(host="http://192.168.137.100:5001")
 ```
 
 ### Task
 
 ```python
-from plectrum import GeneralTask, TemplateTask
+import numpy as np
+
+from plectrum import GeneralTask, LocalSolver, Matrix, TemplateTask
+
+matrix = Matrix.from_array(np.array([[1.0, -2.0], [-2.0, 1.0]]))
 
 # General task with matrix
-task = GeneralTask(
+general_task = GeneralTask(
     name="my-task",
     matrix=matrix,
-    computer_type_id=1,
+    gear=1,
     question_type=1,
 )
 
 # Template task
-task = TemplateTask(
+template_task = TemplateTask(
     name="my-template-task",
     template_id=1,
     computer_type_id=1,
@@ -128,7 +169,7 @@ task = TemplateTask(
 )
 
 # Submit to solver
-result = task.solve(solver=client)
+result = general_task.solve(solver=LocalSolver())
 ```
 
 ## Architecture
@@ -136,7 +177,8 @@ result = task.solve(solver=client)
 The SDK is organized into the following modules:
 
 - `plectrum.matrix`: Matrix data handling
-- `plectrum.client`: Solver clients (Cloud, Local)
+- `plectrum.client`: Backward-compatible service clients (Cloud, Local)
+- `plectrum.solver`: Solver-oriented API (CloudSolver, LocalOepoSolver, LocalSolver)
 - `plectrum.task`: Task definitions (General, Template)
 
 ## License

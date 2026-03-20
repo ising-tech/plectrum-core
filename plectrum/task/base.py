@@ -3,8 +3,10 @@
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict
 
+from plectrum.result import Result
+
 if TYPE_CHECKING:
-    from plectrum.client.base import BaseClient
+    from plectrum.solver.base import BaseSolver
 
 
 class BaseTask(ABC):
@@ -42,23 +44,21 @@ class BaseTask(ABC):
         """
         pass
 
-    def solve(self, solver: "BaseClient") -> Dict[str, Any]:
+    def solve(self, solver: "BaseSolver") -> Result:
         """Submit task to solver for solving.
 
         Args:
-            solver: Solver client (CloudClient, LocalClient, etc.)
+            solver: Solver instance (cloud, local service or local algorithm)
 
         Returns:
-            Result dictionary from solver
+            Normalized Result object
         """
         task_data = self.to_dict()
-        result = solver.solve(task_data)
+        raw_result = solver.solve(task_data)
+        result = Result.from_solver_response(raw_result, task_name=self._name)
 
-        # Store task_id if available
-        if "task_id" in result:
-            self._task_id = result["task_id"]
-        elif "data" in result and "taskId" in result["data"]:
-            self._task_id = result["data"]["taskId"]
+        if result.task_id:
+            self._task_id = result.task_id
 
         return result
 

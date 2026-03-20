@@ -3,6 +3,10 @@
 
 from plectrum.matrix import Matrix
 from plectrum.client import BaseClient, CloudClient, LocalClient
+from plectrum.solver.base import BaseSolver
+from plectrum.solver.cloud import CloudSolver
+from plectrum.solver.local import LocalSolver
+from plectrum.solver.local_oepo import LocalOepoSolver
 from plectrum.task import BaseTask, GeneralTask, TemplateTask
 from plectrum.result import Result
 from plectrum.const import (
@@ -24,6 +28,11 @@ __all__ = [
     "BaseClient",
     "CloudClient",
     "LocalClient",
+    # Solver
+    "BaseSolver",
+    "CloudSolver",
+    "LocalSolver",
+    "LocalOepoSolver",
     # Task
     "BaseTask",
     "GeneralTask",

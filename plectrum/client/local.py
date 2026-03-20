@@ -77,7 +77,7 @@ class LocalClient(BaseClient):
         question_type = task_data.get("params", {}).get("type")
 
         if computer_type_id is not None:
-            params["gear"] = 2
+            params["gear"] = computer_type_id
         if question_type is not None:
             # Convert question_type to local solver string
             # Cloud: 1=QUBO (binary), 2=ISING (spin)

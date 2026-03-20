@@ -1,39 +1,17 @@
 """Base client class for Plectrum SDK."""
 
-from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from abc import abstractmethod
+from typing import Any, Dict
+
+from plectrum.solver.base import BaseSolver
 
 
-class BaseClient(ABC):
+class BaseClient(BaseSolver):
     """Abstract base class for solver clients.
 
     This class defines the interface that all solver clients
     (cloud, local, etc.) must implement.
     """
-
-    def __init__(
-        self,
-        api_key: Optional[str] = None,
-        host: Optional[str] = None,
-    ):
-        """Initialize base client.
-
-        Args:
-            api_key: API key for authentication
-            host: Base URL for the solver service
-        """
-        self._api_key = api_key
-        self._host = host
-
-    @property
-    def api_key(self) -> Optional[str]:
-        """Get API key."""
-        return self._api_key
-
-    @property
-    def host(self) -> Optional[str]:
-        """Get host URL."""
-        return self._host
 
     @abstractmethod
     def solve(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -45,7 +23,7 @@ class BaseClient(ABC):
         Returns:
             Result dictionary from the solver
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def get_task(self, task_id: str) -> Dict[str, Any]:
@@ -57,7 +35,4 @@ class BaseClient(ABC):
         Returns:
             Task information dictionary
         """
-        pass
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(host={self._host})"
+        raise NotImplementedError

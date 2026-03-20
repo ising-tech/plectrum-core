@@ -18,6 +18,7 @@ class GeneralTask(BaseTask):
         name: str = None,
         matrix: Optional[Matrix] = None,
         computer_type_id: int = None,
+        gear: int = None,
         question_type: int = None,
         calculate_count: int = None,
         post_process: int = None,
@@ -30,6 +31,7 @@ class GeneralTask(BaseTask):
             name: Task name
             matrix: Input matrix data
             computer_type_id: Computer type ID
+            gear: Local/cloud gear alias, equivalent to computer_type_id
             question_type: Question type
             calculate_count: Calculate count
             post_process: Post process flag
@@ -37,8 +39,16 @@ class GeneralTask(BaseTask):
             input_h_file: Input H file URL (for cloud)
         """
         super().__init__(name=name)
+        if (
+            gear is not None
+            and computer_type_id is not None
+            and gear != computer_type_id
+        ):
+            raise ValueError("gear and computer_type_id must match when both set")
         self._matrix = matrix
-        self._computer_type_id = computer_type_id
+        self._computer_type_id = (
+            gear if gear is not None else computer_type_id
+        )
         self._question_type = question_type
         self._calculate_count = calculate_count
         self._post_process = post_process
@@ -53,6 +63,11 @@ class GeneralTask(BaseTask):
     @property
     def computer_type_id(self) -> Optional[int]:
         """Get computer type ID."""
+        return self._computer_type_id
+
+    @property
+    def gear(self) -> Optional[int]:
+        """Get gear alias for local/cloud solver selection."""
         return self._computer_type_id
 
     @property
@@ -96,6 +111,11 @@ class GeneralTask(BaseTask):
             "caculateCount": self._calculate_count,
             "postProcess": self._post_process,
         }
+        payload = {
+            key: value
+            for key, value in payload.items()
+            if value is not None
+        }
 
         # Include CSV string for local solver
         csv_string = None
@@ -125,10 +145,11 @@ class GeneralTask(BaseTask):
         payload = data.get("payload", {})
         return cls(
             name=payload.get("name"),
-            computer_type_id=payload.get("computerTypeId"),
+            gear=payload.get("computerTypeId"),
             input_j_file=payload.get("inputJFile"),
             input_h_file=payload.get("inputHFile"),
             question_type=payload.get("questionType"),
-            calculate_count=payload.get("calculateCount"),
+            calculate_count=payload.get("calculateCount")
+            or payload.get("caculateCount"),
             post_process=payload.get("postProcess"),
         )
