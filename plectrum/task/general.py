@@ -1,9 +1,10 @@
-"""General task class for Plectrum SDK."""
+"""General task classes for Plectrum SDK."""
 
 from typing import Any, Dict, Optional
 
 from plectrum.task.base import BaseTask
 from plectrum.matrix import Matrix
+from plectrum.const import QUBO_PROBLEM, ISING_PROBLEM
 
 
 class GeneralTask(BaseTask):
@@ -24,18 +25,7 @@ class GeneralTask(BaseTask):
         input_j_file: str = None,
         input_h_file: str = None,
     ):
-        """Initialize general task.
-
-        Args:
-            name: Task name
-            matrix: Input matrix data
-            computer_type_id: Computer type ID
-            question_type: Question type
-            calculate_count: Calculate count
-            post_process: Post process flag
-            input_j_file: Input J file URL (for cloud)
-            input_h_file: Input H file URL (for cloud)
-        """
+        """Initialize general task."""
         super().__init__(name=name)
         self._matrix = matrix
         self._computer_type_id = computer_type_id
@@ -81,11 +71,7 @@ class GeneralTask(BaseTask):
         return self._input_h_file
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert task to dictionary.
-
-        Returns:
-            Task data as dictionary
-        """
+        """Convert task to dictionary."""
         # Build payload for cloud
         payload = {
             "name": self._name,
@@ -114,14 +100,7 @@ class GeneralTask(BaseTask):
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GeneralTask":
-        """Create task from dictionary.
-
-        Args:
-            data: Task data dictionary
-
-        Returns:
-            GeneralTask instance
-        """
+        """Create task from dictionary."""
         payload = data.get("payload", {})
         return cls(
             name=payload.get("name"),
@@ -131,4 +110,58 @@ class GeneralTask(BaseTask):
             question_type=payload.get("questionType"),
             calculate_count=payload.get("calculateCount"),
             post_process=payload.get("postProcess"),
+        )
+
+
+class MinimalIsingEnergyTask(GeneralTask):
+    """Minimal Ising Energy Task.
+
+    Task for solving ISING problem (minimizing Ising energy).
+    """
+
+    def __init__(
+        self,
+        name: str = None,
+        data: Matrix = None,
+        **kwargs,
+    ):
+        """Initialize MinimalIsingEnergyTask.
+
+        Args:
+            name: Task name
+            data: Input data matrix
+            **kwargs: Additional arguments for GeneralTask
+        """
+        super().__init__(
+            name=name,
+            matrix=data,
+            question_type=ISING_PROBLEM,
+            **kwargs,
+        )
+
+
+class QuboTask(GeneralTask):
+    """QUBO Task.
+
+    Task for solving QUBO (Quadratic Unconstrained Binary Optimization) problem.
+    """
+
+    def __init__(
+        self,
+        name: str = None,
+        data: Matrix = None,
+        **kwargs,
+    ):
+        """Initialize QuboTask.
+
+        Args:
+            name: Task name
+            data: Input data matrix
+            **kwargs: Additional arguments for GeneralTask
+        """
+        super().__init__(
+            name=name,
+            matrix=data,
+            question_type=QUBO_PROBLEM,
+            **kwargs,
         )

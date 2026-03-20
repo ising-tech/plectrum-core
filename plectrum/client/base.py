@@ -1,13 +1,13 @@
-"""Base client class for Plectrum SDK."""
+"""Base solver class for Plectrum SDK."""
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 
 
-class BaseClient(ABC):
-    """Abstract base class for solver clients.
+class BaseSolver(ABC):
+    """Abstract base class for solvers.
 
-    This class defines the interface that all solver clients
+    This class defines the interface that all solvers
     (cloud, local, etc.) must implement.
     """
 
@@ -16,7 +16,7 @@ class BaseClient(ABC):
         api_key: Optional[str] = None,
         host: Optional[str] = None,
     ):
-        """Initialize base client.
+        """Initialize base solver.
 
         Args:
             api_key: API key for authentication
@@ -61,3 +61,7 @@ class BaseClient(ABC):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(host={self._host})"
+
+
+# Backward compatibility
+BaseClient = BaseSolver

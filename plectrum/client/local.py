@@ -1,8 +1,8 @@
-"""Local client for Plectrum SDK."""
+"""Local solver for Plectrum SDK."""
 
 import requests
 
-from plectrum.client.base import BaseClient
+from plectrum.client.base import BaseSolver
 from plectrum.const import (
     DEFAULT_LOCAL_HOST,
     DEFAULT_LOCAL_API_PATH,
@@ -15,10 +15,10 @@ from plectrum.exceptions import ClientError
 from plectrum.result import Result
 
 
-class LocalClient(BaseClient):
-    """Local solver client.
+class LocalSolver(BaseSolver):
+    """Local solver.
 
-    This client submits tasks to a local solver service.
+    This solver submits tasks to a local solver service.
     """
 
     def __init__(
@@ -26,7 +26,7 @@ class LocalClient(BaseClient):
         host: str = None,
         api_path: str = None,
     ):
-        """Initialize local client.
+        """Initialize local solver.
 
         Args:
             host: Local solver host URL.
@@ -51,33 +51,19 @@ class LocalClient(BaseClient):
         return self._api_path
 
     def solve(self, task_data: dict) -> dict:
-        """Submit task to local solver.
-
-        Args:
-            task_data: Task data dictionary
-
-        Returns:
-            Result dictionary in unified format:
-            {
-                "result": {...},
-                "task_id": "xxx",
-                "status": 1
-            }
-        """
-        # Get matrix data from task_data
+        """Submit task to local solver."""
         csv_string = task_data.get("csv_string")
 
         if csv_string is None:
             raise ClientError("csv_string is required for local solver")
 
         # Build params for local solver
-        # Use string values as per original implementation
         params = {}
         computer_type_id = task_data.get("params", {}).get("gear")
         question_type = task_data.get("params", {}).get("type")
 
         if computer_type_id is not None:
-            params["gear"] = 2
+            params["gear"] = str(computer_type_id)
         if question_type is not None:
             # Convert question_type to local solver string
             # Cloud: 1=QUBO (binary), 2=ISING (spin)
@@ -104,12 +90,11 @@ class LocalClient(BaseClient):
             raw_result = response.json()
 
             # Convert to unified format using Result class
-            # Local solver returns: {job_name: "...", result: {...}}
             task_id = raw_result.get("job_name")
-            
+
             # Create unified Result
             result = Result.from_local(raw_result, task_id)
-            
+
             return {
                 "result": result.to_dict(),
                 "task_id": task_id,
@@ -119,20 +104,18 @@ class LocalClient(BaseClient):
             raise ClientError(f"Local solver request failed: {e}")
 
     def get_task(self, task_id: str) -> dict:
-        """Get task status from local solver.
-
-        For local solver, this might not be supported.
-
-        Args:
-            task_id: Task ID
-
-        Returns:
-            Task information
-        """
-        # Local solver might not support task retrieval
-        # Return a placeholder response
+        """Get task status from local solver."""
         return {
             "task_id": task_id,
             "status": "unknown",
             "message": "Local solver does not support task retrieval",
         }
+
+
+class LocalOepoSolver(LocalSolver):
+    """Local OEPO solver (alias for LocalSolver)."""
+    pass
+
+
+# Backward compatibility
+LocalClient = LocalSolver

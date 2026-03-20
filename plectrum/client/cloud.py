@@ -1,4 +1,4 @@
-"""Cloud client for Plectrum SDK."""
+"""Cloud solver for Plectrum SDK."""
 
 import os
 import time
@@ -6,7 +6,7 @@ import uuid
 import requests
 from typing import Optional
 
-from plectrum.client.base import BaseClient
+from plectrum.client.base import BaseSolver
 from plectrum.const import (
     DEFAULT_CLOUD_HOST,
     DEFAULT_API_KEY_ENV,
@@ -21,10 +21,10 @@ DEFAULT_POLL_INTERVAL = 2  # seconds
 DEFAULT_TIMEOUT = 300  # seconds (5 minutes)
 
 
-class CloudClient(BaseClient):
-    """Cloud solver client.
+class CloudSolver(BaseSolver):
+    """Cloud solver.
 
-    This client submits tasks to the cloud platform API
+    This solver submits tasks to the cloud platform API
     and polls for results.
     """
 
@@ -35,7 +35,7 @@ class CloudClient(BaseClient):
         poll_interval: int = DEFAULT_POLL_INTERVAL,
         timeout: int = DEFAULT_TIMEOUT,
     ):
-        """Initialize cloud client.
+        """Initialize cloud solver.
 
         Args:
             api_key: API key for authentication.
@@ -63,20 +63,7 @@ class CloudClient(BaseClient):
         endpoint: str,
         **kwargs,
     ) -> dict:
-        """Make HTTP request to cloud API.
-
-        Args:
-            method: HTTP method
-            endpoint: API endpoint
-            **kwargs: Additional arguments for request
-
-        Returns:
-            Response JSON data
-
-        Raises:
-            AuthenticationError: If authentication fails
-            ClientError: If request fails
-        """
+        """Make HTTP request to cloud API."""
         url = f"{self._host}/{endpoint}"
         headers = kwargs.get("headers", {})
         headers["Authorization"] = self._api_key
@@ -86,37 +73,20 @@ class CloudClient(BaseClient):
         try:
             response = self._session.request(method, url, **kwargs)
             if response.status_code == 401:
-                raise AuthenticationError(
-                    "Authentication failed: Invalid API key"
-                )
+                raise AuthenticationError("Authentication failed: Invalid API key")
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
             raise ClientError(f"API request failed: {e}")
 
     def solve(self, task_data: dict) -> dict:
-        """Submit task to cloud solver and wait for result.
-
-        This method:
-        1. Uploads the matrix file to OSS (if provided)
-        2. Creates the task with the file URL
-        3. Polls for the result until completion
-
-        Args:
-            task_data: Task data dictionary
-
-        Returns:
-            Result dictionary from cloud solver (unified format)
-
-        Raises:
-            ClientError: If task fails or timeout
-        """
+        """Submit task to cloud solver and wait for result."""
         task_type = task_data.get("task_type", "general")
-        
+
         # Get payload and potentially upload file
         payload = task_data.get("payload", {}).copy()
         csv_string = task_data.get("csv_string")
-        
+
         # If csv_string is provided, upload to OSS and get file URL
         if csv_string:
             filename = payload.get("name", "task") + ".csv"
@@ -125,13 +95,12 @@ class CloudClient(BaseClient):
                 original_filename=filename,
             )
             file_url = upload_result.get("data", {}).get("fileUrl")
-            # Use the file URL as inputJFile
             payload["inputJFile"] = file_url
-        
+
         # Update task_data with modified payload
         task_data = task_data.copy()
         task_data["payload"] = payload
-        
+
         # Submit task
         if task_type == "general":
             submit_result = self._create_general_task(task_data)
@@ -141,7 +110,6 @@ class CloudClient(BaseClient):
             raise ClientError(f"Unknown task type: {task_type}")
 
         # Extract task ID from response
-        # Create task API returns {data: {id: ...}}, get task returns {id: ...}
         task_id = submit_result.get("data", {}).get("id") or submit_result.get("id")
         if not task_id:
             raise ClientError("Failed to get task ID from response")
@@ -150,63 +118,36 @@ class CloudClient(BaseClient):
         return self._poll_for_result(task_id)
 
     def _poll_for_result(self, task_id: str) -> dict:
-        """Poll for task result until completion.
-
-        Args:
-            task_id: Task ID
-
-        Returns:
-            Result dictionary in unified format
-
-        Raises:
-            ClientError: If timeout or task fails
-        """
+        """Poll for task result until completion."""
         start_time = time.time()
-        completed_statuses = [1, 2, 3]  # Task completion statuses
+        completed_statuses = [1, 2, 3]
 
         while True:
-            # Check timeout
             elapsed = time.time() - start_time
             if elapsed > self._timeout:
-                raise ClientError(
-                    f"Task polling timeout after {self._timeout} seconds"
-                )
+                raise ClientError(f"Task polling timeout after {self._timeout} seconds")
 
-            # Get task status
             response = self.get_task(task_id)
-            # API returns task object directly, not wrapped in "data"
             status = response.get("status")
 
-            # Check if task is completed
             if status in completed_statuses:
-                # Get raw result data
                 result_data = response.get("result")
                 if result_data is None:
-                    # Task might have failed
                     message = response.get("message", "Task failed")
                     raise ClientError(f"Task failed: {message}")
 
-                # Convert to unified Result format
                 result = Result.from_cloud(result_data, task_id)
-                
+
                 return {
                     "result": result.to_dict(),
                     "task_id": task_id,
                     "status": status,
                 }
 
-            # Wait before next poll
             time.sleep(self._poll_interval)
 
     def _create_general_task(self, task_data: dict) -> dict:
-        """Create general task.
-
-        Args:
-            task_data: Task data
-
-        Returns:
-            Task submission response
-        """
+        """Create general task."""
         return self._request(
             "POST",
             "tasks/create-general",
@@ -214,14 +155,7 @@ class CloudClient(BaseClient):
         )
 
     def _create_template_task(self, task_data: dict) -> dict:
-        """Create template task.
-
-        Args:
-            task_data: Task data
-
-        Returns:
-            Task submission response
-        """
+        """Create template task."""
         return self._request(
             "POST",
             "tasks/create-template",
@@ -229,58 +163,21 @@ class CloudClient(BaseClient):
         )
 
     def get_task(self, task_id: str) -> dict:
-        """Get task status from cloud.
-
-        Args:
-            task_id: Task ID
-
-        Returns:
-            Task information
-        """
+        """Get task status from cloud."""
         return self._request("GET", f"tasks/{task_id}")
 
-    def get_task_list(
-        self,
-        page_no: int = 1,
-        page_size: int = 10,
-    ) -> dict:
-        """Get task list from cloud.
-
-        Args:
-            page_no: Page number
-            page_size: Page size
-
-        Returns:
-            Task list
-        """
+    def get_task_list(self, page_no: int = 1, page_size: int = 10) -> dict:
+        """Get task list from cloud."""
         return self._request(
             "POST",
             "tasks/list",
             json={"page_no": page_no, "page_size": page_size},
         )
 
-    def upload_file(
-        self,
-        file_path_or_bytes,
-        original_filename: str = None,
-    ) -> dict:
-        """Upload file to OSS storage.
-
-        Args:
-            file_path_or_bytes: File path (str) or file bytes
-            original_filename: Original filename (required if uploading bytes)
-
-        Returns:
-            Upload result with file URL
-
-        Raises:
-            ClientError: If upload fails
-        """
+    def upload_file(self, file_path_or_bytes, original_filename: str = None) -> dict:
+        """Upload file to OSS storage."""
         # Step 1: Get OSS upload signature
-        signature_response = self._request(
-            "GET",
-            "files/getPostSignatureForOssUpload",
-        )
+        signature_response = self._request("GET", "files/getPostSignatureForOssUpload")
         signature_data = signature_response["data"]
 
         # Step 2: Build OSS upload form data
@@ -303,16 +200,12 @@ class CloudClient(BaseClient):
                 with open(file_path_or_bytes, "rb") as f:
                     file_data = f.read()
                 if original_filename is None:
-                    original_filename = (
-                        file_path_or_bytes.split("/")[-1]
-                    )
+                    original_filename = file_path_or_bytes.split("/")[-1]
             else:
                 file_data = file_path_or_bytes
 
             files = {"file": (original_filename, file_data)}
-            headers = {}
-            headers["Authorization"] = self._api_key
-            headers["channel"] = DEFAULT_CHANNEL
+            headers = {"Authorization": self._api_key, "channel": DEFAULT_CHANNEL}
 
             oss_response = requests.post(
                 signature_data["host"],
@@ -322,17 +215,16 @@ class CloudClient(BaseClient):
             )
 
             if oss_response.status_code != 200:
-                raise ClientError(
-                    f"OSS upload failed: {oss_response.status_code}"
-                )
+                raise ClientError(f"OSS upload failed: {oss_response.status_code}")
 
             file_url = f"{signature_data['host']}/{file_key}"
             return {
                 "success": True,
-                "data": {
-                    "fileUrl": file_url,
-                    "originalFileName": original_filename,
-                },
+                "data": {"fileUrl": file_url, "originalFileName": original_filename},
             }
         except Exception as e:
             raise ClientError(f"Upload failed: {e}")
+
+
+# Backward compatibility
+CloudClient = CloudSolver
