@@ -20,7 +20,7 @@ class GeneralTask(BaseTask):
         matrix: Optional[Matrix] = None,
         computer_type_id: int = None,
         question_type: int = None,
-        calculate_count: int = None,
+        shot_count: int = None,  # Corrected: calculate_count -> shot_count
         post_process: int = None,
         input_j_file: str = None,
         input_h_file: str = None,
@@ -30,7 +30,7 @@ class GeneralTask(BaseTask):
         self._matrix = matrix
         self._computer_type_id = computer_type_id
         self._question_type = question_type
-        self._calculate_count = calculate_count
+        self._shot_count = shot_count
         self._post_process = post_process
         self._input_j_file = input_j_file
         self._input_h_file = input_h_file
@@ -51,9 +51,15 @@ class GeneralTask(BaseTask):
         return self._question_type
 
     @property
+    def shot_count(self) -> Optional[int]:
+        """Get shot count (number of calculation iterations)."""
+        return self._shot_count
+
+    # Backward compatibility alias
+    @property
     def calculate_count(self) -> Optional[int]:
-        """Get calculate count."""
-        return self._calculate_count
+        """Get calculate count (alias for shot_count)."""
+        return self._shot_count
 
     @property
     def post_process(self) -> Optional[int]:
@@ -73,13 +79,14 @@ class GeneralTask(BaseTask):
     def to_dict(self) -> Dict[str, Any]:
         """Convert task to dictionary."""
         # Build payload for cloud
+        # Note: "caculateCount" is kept as-is for API compatibility
         payload = {
             "name": self._name,
             "computerTypeId": self._computer_type_id,
             "inputJFile": self._input_j_file,
             "inputHFile": self._input_h_file,
             "questionType": self._question_type,
-            "caculateCount": self._calculate_count,
+            "caculateCount": self._shot_count,  # Internal name fixed, API key kept misspelled
             "postProcess": self._post_process,
         }
 
@@ -102,13 +109,15 @@ class GeneralTask(BaseTask):
     def from_dict(cls, data: Dict[str, Any]) -> "GeneralTask":
         """Create task from dictionary."""
         payload = data.get("payload", {})
+        # Support both correct name and misspelled name for backward compatibility
+        shot_count = payload.get("shot_count") or payload.get("caculateCount")
         return cls(
             name=payload.get("name"),
             computer_type_id=payload.get("computerTypeId"),
             input_j_file=payload.get("inputJFile"),
             input_h_file=payload.get("inputHFile"),
             question_type=payload.get("questionType"),
-            calculate_count=payload.get("calculateCount"),
+            shot_count=shot_count,
             post_process=payload.get("postProcess"),
         )
 

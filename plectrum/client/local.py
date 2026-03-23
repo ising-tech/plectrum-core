@@ -21,6 +21,8 @@ class LocalSolver(BaseSolver):
     This solver submits tasks to a local solver service.
     """
 
+    SUPPORTED_TASK_TYPES = ["general"]
+
     def __init__(
         self,
         host: str = None,
@@ -51,35 +53,56 @@ class LocalSolver(BaseSolver):
         return self._api_path
 
     def solve(self, task_data: dict) -> dict:
-        """Submit task to local solver."""
-        csv_string = task_data.get("csv_string")
+        """Submit task to local solver.
 
+        Args:
+            task_data: Task data dictionary
+
+        Returns:
+            Result dictionary in unified format:
+            {
+                "result": {...},
+                "task_id": "xxx",
+                "status": 1
+            }
+        """
+        # Validate task type
+        task_type = task_data.get("task_type", "general")
+        self._validate_task_type(task_type)
+
+        # Route to appropriate handler
+        if task_type == "general":
+            return self._create_general_task(task_data)
+        else:
+            raise ClientError(f"Unknown task type: {task_type}")
+
+    def _create_general_task(self, task_data: dict) -> dict:
+        """Create and submit a general task to local solver.
+
+        Args:
+            task_data: Task data dictionary
+
+        Returns:
+            Result dictionary in unified format
+        """
+        csv_string = task_data.get("csv_string")
         if csv_string is None:
             raise ClientError("csv_string is required for local solver")
 
         # Build params for local solver
+        # Handle gear (computer_type_id) conversion
         params = {}
         computer_type_id = task_data.get("params", {}).get("gear")
-        question_type = task_data.get("params", {}).get("type")
-
         if computer_type_id is not None:
             params["gear"] = str(computer_type_id)
+
+        # Handle question_type conversion (QUBO/ISING -> binary/spin)
+        question_type = task_data.get("params", {}).get("type")
         if question_type is not None:
-            # Convert question_type to local solver string
-            # Cloud: 1=QUBO (binary), 2=ISING (spin)
-            if isinstance(question_type, int):
-                if question_type == QUBO_PROBLEM:
-                    params["type"] = LOCAL_TYPE_QUBO
-                elif question_type == ISING_PROBLEM:
-                    params["type"] = LOCAL_TYPE_ISING
-                else:
-                    params["type"] = str(question_type)
-            else:
-                params["type"] = str(question_type)
+            params["type"] = self._convert_question_type(question_type)
 
-        # Prepare files and params
+        # Submit to local solver
         files = {"data": csv_string}
-
         try:
             response = self._session.post(
                 self._url,
@@ -88,23 +111,46 @@ class LocalSolver(BaseSolver):
             )
             response.raise_for_status()
             raw_result = response.json()
-
-            # Convert to unified format using Result class
-            task_id = raw_result.get("job_name")
-
-            # Create unified Result
-            result = Result.from_local(raw_result, task_id)
-
-            return {
-                "result": result.to_dict(),
-                "task_id": task_id,
-                "status": 1,  # Completed status
-            }
         except requests.exceptions.RequestException as e:
             raise ClientError(f"Local solver request failed: {e}")
 
+        # Convert to unified format
+        task_id = raw_result.get("job_name")
+        result = Result.from_local(raw_result, task_id)
+
+        return {
+            "result": result.to_dict(),
+            "task_id": task_id,
+            "status": 1,
+        }
+
+    def _convert_question_type(self, question_type) -> str:
+        """Convert question type to local solver string format.
+
+        Args:
+            question_type: Question type (int or str)
+
+        Returns:
+            Local solver type string ('binary' or 'spin')
+        """
+        if isinstance(question_type, int):
+            if question_type == QUBO_PROBLEM:
+                return LOCAL_TYPE_QUBO
+            elif question_type == ISING_PROBLEM:
+                return LOCAL_TYPE_ISING
+        return str(question_type)
+
     def get_task(self, task_id: str) -> dict:
-        """Get task status from local solver."""
+        """Get task status from local solver.
+
+        For local solver, this is not supported.
+
+        Args:
+            task_id: Task ID
+
+        Returns:
+            Task information
+        """
         return {
             "task_id": task_id,
             "status": "unknown",

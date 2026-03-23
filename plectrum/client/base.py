@@ -1,7 +1,9 @@
 """Base solver class for Plectrum SDK."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
+
+from plectrum.exceptions import ClientError
 
 
 class BaseSolver(ABC):
@@ -10,6 +12,9 @@ class BaseSolver(ABC):
     This class defines the interface that all solvers
     (cloud, local, etc.) must implement.
     """
+
+    # Supported task types - subclasses should override
+    SUPPORTED_TASK_TYPES: List[str] = []
 
     def __init__(
         self,
@@ -34,6 +39,21 @@ class BaseSolver(ABC):
     def host(self) -> Optional[str]:
         """Get host URL."""
         return self._host
+
+    def _validate_task_type(self, task_type: str) -> None:
+        """Validate if task type is supported by this solver.
+
+        Args:
+            task_type: Task type to validate
+
+        Raises:
+            ClientError: If task type is not supported
+        """
+        if task_type not in self.SUPPORTED_TASK_TYPES:
+            raise ClientError(
+                f"Task type '{task_type}' is not supported by {self.__class__.__name__}. "
+                f"Supported types: {self.SUPPORTED_TASK_TYPES}"
+            )
 
     @abstractmethod
     def solve(self, task_data: Dict[str, Any]) -> Dict[str, Any]:

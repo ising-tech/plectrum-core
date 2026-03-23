@@ -28,6 +28,8 @@ class CloudSolver(BaseSolver):
     and polls for results.
     """
 
+    SUPPORTED_TASK_TYPES = ["general", "template"]
+
     def __init__(
         self,
         api_key: str = None,
@@ -81,35 +83,77 @@ class CloudSolver(BaseSolver):
 
     def solve(self, task_data: dict) -> dict:
         """Submit task to cloud solver and wait for result."""
+        # Get task type, default to "general"
         task_type = task_data.get("task_type", "general")
+        
+        # Validate task type
+        self._validate_task_type(task_type)
 
-        # Get payload and potentially upload file
+        # Route to appropriate handler
+        if task_type == "general":
+            return self._create_general_task(task_data)
+        elif task_type == "template":
+            return self._create_template_task(task_data)
+        else:
+            raise ClientError(f"Unknown task type: {task_type}")
+
+    def _create_general_task(self, task_data: dict) -> dict:
+        """Create and submit a general task to cloud solver.
+
+        Args:
+            task_data: Task data dictionary
+
+        Returns:
+            Result dictionary in unified format
+        """
+        # Get payload
         payload = task_data.get("payload", {}).copy()
         csv_string = task_data.get("csv_string")
 
-        # If csv_string is provided, upload to OSS and get file URL
+        # Upload file if csv_string is provided
         if csv_string:
             filename = payload.get("name", "task") + ".csv"
-            upload_result = self.upload_file(
+            upload_result = self._upload_file(
                 file_path_or_bytes=csv_string.encode('utf-8'),
                 original_filename=filename,
             )
             file_url = upload_result.get("data", {}).get("fileUrl")
             payload["inputJFile"] = file_url
 
-        # Update task_data with modified payload
-        task_data = task_data.copy()
-        task_data["payload"] = payload
+        # Submit task
+        submit_result = self._request(
+            "POST",
+            "tasks/create-general",
+            json=payload,
+        )
+
+        # Extract task ID
+        task_id = submit_result.get("data", {}).get("id") or submit_result.get("id")
+        if not task_id:
+            raise ClientError("Failed to get task ID from response")
+
+        # Poll for result
+        return self._poll_for_result(task_id)
+
+    def _create_template_task(self, task_data: dict) -> dict:
+        """Create and submit a template task to cloud solver.
+
+        Args:
+            task_data: Task data dictionary
+
+        Returns:
+            Result dictionary in unified format
+        """
+        payload = task_data.get("payload", {})
 
         # Submit task
-        if task_type == "general":
-            submit_result = self._create_general_task(task_data)
-        elif task_type == "template":
-            submit_result = self._create_template_task(task_data)
-        else:
-            raise ClientError(f"Unknown task type: {task_type}")
+        submit_result = self._request(
+            "POST",
+            "tasks/create-template",
+            json=payload,
+        )
 
-        # Extract task ID from response
+        # Extract task ID
         task_id = submit_result.get("data", {}).get("id") or submit_result.get("id")
         if not task_id:
             raise ClientError("Failed to get task ID from response")
@@ -146,35 +190,7 @@ class CloudSolver(BaseSolver):
 
             time.sleep(self._poll_interval)
 
-    def _create_general_task(self, task_data: dict) -> dict:
-        """Create general task."""
-        return self._request(
-            "POST",
-            "tasks/create-general",
-            json=task_data.get("payload"),
-        )
-
-    def _create_template_task(self, task_data: dict) -> dict:
-        """Create template task."""
-        return self._request(
-            "POST",
-            "tasks/create-template",
-            json=task_data.get("payload"),
-        )
-
-    def get_task(self, task_id: str) -> dict:
-        """Get task status from cloud."""
-        return self._request("GET", f"tasks/{task_id}")
-
-    def get_task_list(self, page_no: int = 1, page_size: int = 10) -> dict:
-        """Get task list from cloud."""
-        return self._request(
-            "POST",
-            "tasks/list",
-            json={"page_no": page_no, "page_size": page_size},
-        )
-
-    def upload_file(self, file_path_or_bytes, original_filename: str = None) -> dict:
+    def _upload_file(self, file_path_or_bytes, original_filename: str = None) -> dict:
         """Upload file to OSS storage."""
         # Step 1: Get OSS upload signature
         signature_response = self._request("GET", "files/getPostSignatureForOssUpload")
@@ -224,6 +240,22 @@ class CloudSolver(BaseSolver):
             }
         except Exception as e:
             raise ClientError(f"Upload failed: {e}")
+
+    def get_task(self, task_id: str) -> dict:
+        """Get task status from cloud."""
+        return self._request("GET", f"tasks/{task_id}")
+
+    def get_task_list(self, page_no: int = 1, page_size: int = 10) -> dict:
+        """Get task list from cloud."""
+        return self._request(
+            "POST",
+            "tasks/list",
+            json={"page_no": page_no, "page_size": page_size},
+        )
+
+    def upload_file(self, file_path_or_bytes, original_filename: str = None) -> dict:
+        """Upload file to OSS storage (public method)."""
+        return self._upload_file(file_path_or_bytes, original_filename)
 
 
 # Backward compatibility
