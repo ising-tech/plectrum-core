@@ -49,7 +49,7 @@ class CloudSolver(BaseSolver):
                     If not provided, will try to get from env var PLECTRUM_API_KEY.
             host: Cloud API base URL.
                   If not provided, will use default cloud host.
-            computer_type: Computer type (machine ID, e.g., OEPO_ISING_1601=1601).
+            computer_type: Computer type (machine ID, e.g., plectrum.const.OEPO_ISING_1601).
             gear: Gear mode (0=fast, 1=balanced, 2=precise).
             poll_interval: Polling interval in seconds (default: 2).
             timeout: Maximum wait time in seconds (default: 300).
@@ -130,9 +130,7 @@ class CloudSolver(BaseSolver):
         # Remove None values from payload
         payload = {k: v for k, v in payload.items() if v is not None}
 
-        # Use solver's gear if available
-        if self._gear is not None:
-            payload["computerTypeId"] = self._gear
+        payload["computerTypeId"] = self._computer_type
 
         # Submit task
         submit_result = self._request(

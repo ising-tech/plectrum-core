@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional, Union
 
 import numpy as np
 
+from plectrum.const import OEPO_ISING_1601, GEAR_PRECISE
 # Import Matrix for type checking and conversion
 from plectrum.matrix import Matrix
 from plectrum.task.base import BaseTask
@@ -53,13 +54,14 @@ class GeneralTask(BaseTask):
     """
 
     TASK_TYPE = "general"
+    
+    # Subclasses should override this
+    QUESTION_TYPE: int = None
 
     def __init__(
         self,
         name: str = None,
         data: Union[np.ndarray, Matrix, Any] = None,
-        gear: int = None,
-        question_type: int = None,
         shot_count: int = None,
         post_process: int = None,
         input_j_file: str = None,
@@ -70,8 +72,6 @@ class GeneralTask(BaseTask):
         Args:
             name: Task name
             data: Input data (np.ndarray, pd.DataFrame, or Matrix)
-            gear: Computer type ID
-            question_type: Question type (QUBO_PROBLEM or ISING_PROBLEM)
             shot_count: Number of calculation iterations
             post_process: Post process flag
             input_j_file: URL to J matrix file
@@ -79,8 +79,7 @@ class GeneralTask(BaseTask):
         """
         super().__init__(name=name)
         self._matrix = _convert_to_matrix(data)
-        self._gear = gear
-        self._question_type = question_type
+        self._question_type = self.QUESTION_TYPE
         self._shot_count = shot_count
         self._post_process = post_process
         self._input_j_file = input_j_file
@@ -95,11 +94,6 @@ class GeneralTask(BaseTask):
     def matrix(self) -> Optional[Matrix]:
         """Get matrix."""
         return self._matrix
-
-    @property
-    def gear(self) -> Optional[int]:
-        """Get computer type ID."""
-        return self._gear
 
     @property
     def question_type(self) -> Optional[int]:
@@ -138,7 +132,6 @@ class GeneralTask(BaseTask):
         # Note: "caculateCount" is kept as-is for API compatibility
         payload = {
             "name": self._name,
-            "computerTypeId": self._gear,
             "inputJFile": self._input_j_file,
             "inputHFile": self._input_h_file,
             "questionType": self._question_type,
@@ -156,7 +149,6 @@ class GeneralTask(BaseTask):
             "payload": payload,
             "csv_string": csv_string,
             "params": {
-                "gear": self._gear,
                 "type": self._question_type,
             },
         }
@@ -168,10 +160,8 @@ class GeneralTask(BaseTask):
         shot_count = payload.get("shot_count") or payload.get("caculateCount")
         return cls(
             name=payload.get("name"),
-            gear=payload.get("computerTypeId"),
             input_j_file=payload.get("inputJFile"),
             input_h_file=payload.get("inputHFile"),
-            question_type=payload.get("questionType"),
             shot_count=shot_count,
             post_process=payload.get("postProcess"),
         )
@@ -182,26 +172,8 @@ class MinimalIsingEnergyTask(GeneralTask):
 
     Task for solving ISING problem (minimizing Ising energy).
     """
-
-    def __init__(
-        self,
-        name: str = None,
-        data: Union[np.ndarray, Matrix, Any] = None,
-        **kwargs,
-    ):
-        """Initialize MinimalIsingEnergyTask.
-
-        Args:
-            name: Task name
-            data: Input data (np.ndarray, pd.DataFrame, or Matrix)
-            **kwargs: Additional arguments for GeneralTask
-        """
-        super().__init__(
-            name=name,
-            data=data,
-            question_type=ISING_PROBLEM,
-            **kwargs,
-        )
+    
+    QUESTION_TYPE = ISING_PROBLEM
 
 
 class QuboTask(GeneralTask):
@@ -209,23 +181,5 @@ class QuboTask(GeneralTask):
 
     Task for solving QUBO (Quadratic Unconstrained Binary Optimization) problem.
     """
-
-    def __init__(
-        self,
-        name: str = None,
-        data: Union[np.ndarray, Matrix, Any] = None,
-        **kwargs,
-    ):
-        """Initialize QuboTask.
-
-        Args:
-            name: Task name
-            data: Input data (np.ndarray, pd.DataFrame, or Matrix)
-            **kwargs: Additional arguments for GeneralTask
-        """
-        super().__init__(
-            name=name,
-            data=data,
-            question_type=QUBO_PROBLEM,
-            **kwargs,
-        )
+    
+    QUESTION_TYPE = QUBO_PROBLEM
