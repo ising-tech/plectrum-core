@@ -16,10 +16,6 @@
 
 - **Unified Interface**: Single API for both cloud and local solvers
 - **Flexible Solver Selection**: Choose solver at runtime for easy comparison
-- **Multiple Task Types**: QUBO, ISING, general, and template tasks
-- **Flexible Input**: Support numpy arrays, pandas DataFrames, and CSV files
-- **Robust Error Handling**: Clear exception hierarchy with full stack-trace chaining
-- **Well Tested**: 96 %+ unit-test coverage
 
 ### Installation
 
@@ -361,9 +357,6 @@ Copyright (c) 2026 Ising Tech. All rights reserved.
 - **统一接口**：云端和本地求解器使用同一套 API
 - **灵活选择**：运行时可自由切换求解器
 - **多种任务类型**：QUBO、ISING、通用任务和模板任务
-- **灵活输入**：支持 numpy 数组、pandas DataFrame 和 CSV 文件
-- **健壮的错误处理**：清晰的异常层级，完整的堆栈追踪链
-- **充分测试**：96%+ 单元测试覆盖率
 
 ### 安装
 
@@ -599,7 +592,7 @@ from plectrum import GEAR_FAST, GEAR_BALANCED, GEAR_PRECISE
 
 ### 错误处理
 
-SDK 提供清晰的异常层级。所有异常通过 `__cause__` 链接原始原因，确保完整的堆栈追踪。
+所有异常通过 `__cause__` 链接原始原因
 
 ```
 PlectrumError                 ← 基类，可统一捕获
