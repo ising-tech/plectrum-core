@@ -8,6 +8,10 @@ from plectrum.result import Result
 from plectrum.const import (
     QUBO_PROBLEM,
     ISING_PROBLEM,
+    GEAR_FAST,
+    GEAR_BALANCED,
+    GEAR_PRECISE,
+    OEPO_ISING_1601,
 )
 from plectrum.exceptions import (
     PlectrumError,
@@ -35,6 +39,10 @@ __all__ = [
     # Constants
     "QUBO_PROBLEM",
     "ISING_PROBLEM",
+    "GEAR_FAST",
+    "GEAR_BALANCED",
+    "GEAR_PRECISE",
+    "OEPO_ISING_1601",
     # Exceptions
     "PlectrumError",
     "AuthenticationError",

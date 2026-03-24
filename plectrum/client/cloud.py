@@ -11,9 +11,12 @@ from plectrum.const import (
     DEFAULT_CLOUD_HOST,
     DEFAULT_API_KEY_ENV,
     DEFAULT_CHANNEL,
+    OEPO_ISING_1601,
+    GEAR_PRECISE
 )
 from plectrum.exceptions import AuthenticationError, ClientError
 from plectrum.result import Result
+from plectrum.task import GeneralTask, MinimalIsingEnergyTask, QuboTask, TemplateTask
 
 
 # Default polling configuration
@@ -28,12 +31,14 @@ class CloudSolver(BaseSolver):
     and polls for results.
     """
 
-    SUPPORTED_TASK_TYPES = ["general", "template"]
+    SUPPORTED_TASK_TYPES = [GeneralTask, MinimalIsingEnergyTask, QuboTask, TemplateTask]
 
     def __init__(
         self,
         api_key: str = None,
         host: str = None,
+        computer_type: int = OEPO_ISING_1601,
+        gear: int = GEAR_PRECISE,
         poll_interval: int = DEFAULT_POLL_INTERVAL,
         timeout: int = DEFAULT_TIMEOUT,
     ):
@@ -44,6 +49,8 @@ class CloudSolver(BaseSolver):
                     If not provided, will try to get from env var PLECTRUM_API_KEY.
             host: Cloud API base URL.
                   If not provided, will use default cloud host.
+            computer_type: Computer type (machine ID, e.g., OEPO_ISING_1601=1601).
+            gear: Gear mode (0=fast, 1=balanced, 2=precise).
             poll_interval: Polling interval in seconds (default: 2).
             timeout: Maximum wait time in seconds (default: 300).
         """
@@ -54,7 +61,7 @@ class CloudSolver(BaseSolver):
         if host is None:
             host = DEFAULT_CLOUD_HOST
 
-        super().__init__(api_key=api_key, host=host)
+        super().__init__(api_key=api_key, host=host, computer_type=computer_type, gear=gear)
         self._poll_interval = poll_interval
         self._timeout = timeout
         self._session = requests.Session()
@@ -119,6 +126,13 @@ class CloudSolver(BaseSolver):
             )
             file_url = upload_result.get("data", {}).get("fileUrl")
             payload["inputJFile"] = file_url
+
+        # Remove None values from payload
+        payload = {k: v for k, v in payload.items() if v is not None}
+
+        # Use solver's gear if available
+        if self._gear is not None:
+            payload["computerTypeId"] = self._gear
 
         # Submit task
         submit_result = self._request(

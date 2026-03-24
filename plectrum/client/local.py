@@ -10,9 +10,12 @@ from plectrum.const import (
     ISING_PROBLEM,
     LOCAL_TYPE_QUBO,
     LOCAL_TYPE_ISING,
+    GEAR_PRECISE
 )
 from plectrum.exceptions import ClientError
 from plectrum.result import Result
+
+from plectrum.task import GeneralTask, MinimalIsingEnergyTask, QuboTask
 
 
 class LocalSolver(BaseSolver):
@@ -21,12 +24,14 @@ class LocalSolver(BaseSolver):
     This solver submits tasks to a local solver service.
     """
 
-    SUPPORTED_TASK_TYPES = ["general"]
+    SUPPORTED_TASK_TYPES = [GeneralTask, MinimalIsingEnergyTask, QuboTask]
 
     def __init__(
         self,
         host: str = None,
         api_path: str = None,
+        computer_type: int = None,
+        gear: int = None,
     ):
         """Initialize local solver.
 
@@ -35,6 +40,9 @@ class LocalSolver(BaseSolver):
                   If not provided, will use default local host.
             api_path: API path for the solver.
                      If not provided, will use default path.
+            computer_type: Computer type (machine ID, e.g., OEPO_ISING_1601=1601).
+            gear: Gear mode (0=fast, 1=balanced, 2=precise).
+                            If not provided, will use default (1=balanced).
         """
         if host is None:
             host = DEFAULT_LOCAL_HOST
@@ -42,9 +50,10 @@ class LocalSolver(BaseSolver):
         if api_path is None:
             api_path = DEFAULT_LOCAL_API_PATH
 
-        super().__init__(api_key=None, host=host)
+        super().__init__(api_key=None, host=host, computer_type=computer_type, gear=gear)
         self._api_path = api_path
         self._url = host + api_path
+        self._gear = gear
         self._session = requests.Session()
 
     @property
@@ -90,11 +99,14 @@ class LocalSolver(BaseSolver):
             raise ClientError("csv_string is required for local solver")
 
         # Build params for local solver
-        # Handle gear (computer_type_id) conversion
         params = {}
-        computer_type_id = task_data.get("params", {}).get("gear")
-        if computer_type_id is not None:
-            params["gear"] = str(computer_type_id)
+        
+        # Use solver's computer_type (machine) if available
+        if self._computer_type is not None:
+            params["computer"] = str(self._computer_type)
+        
+        # Use solver's gear (gear) if available, otherwise fallback to task's
+        params["gear"] = self._gear if self._gear else GEAR_PRECISE
 
         # Handle question_type conversion (QUBO/ISING -> binary/spin)
         question_type = task_data.get("params", {}).get("type")
