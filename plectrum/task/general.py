@@ -1,9 +1,51 @@
-"""General task class for Plectrum SDK."""
+"""General task classes for Plectrum SDK."""
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
-from plectrum.task.base import BaseTask
+import numpy as np
+
 from plectrum.matrix import Matrix
+from plectrum.task.base import BaseTask
+from plectrum.const import QUBO_PROBLEM, ISING_PROBLEM
+from plectrum.exceptions import TaskError
+
+
+def _convert_to_matrix(data) -> Optional[Matrix]:
+    """Convert various data types to Matrix.
+    
+    Args:
+        data: Input data (np.ndarray, pd.DataFrame, Matrix, or None)
+    
+    Returns:
+        Matrix object or None
+    
+    Raises:
+        TaskError: If *data* is an unsupported type.
+    """
+    if data is None:
+        return None
+    
+    if isinstance(data, Matrix):
+        return data
+    
+    if isinstance(data, np.ndarray):
+        return Matrix.from_array(data)
+    
+    # Check for pandas DataFrame
+    try:
+        import pandas as pd
+        if isinstance(data, pd.DataFrame):
+            return Matrix.from_array(data.values)
+    except ImportError:
+        pass
+    
+    # If already a Matrix-like object with to_csv_string method
+    if hasattr(data, 'to_csv_string'):
+        return data
+    
+    raise TaskError(
+        f"data must be np.ndarray, pd.DataFrame, or Matrix, got {type(data)}"
+    )
 
 
 class GeneralTask(BaseTask):
@@ -13,37 +55,42 @@ class GeneralTask(BaseTask):
     with J matrix and H vector inputs.
     """
 
+    TASK_TYPE = "general"
+    
+    # Subclasses should override this
+    QUESTION_TYPE: int = None
+
     def __init__(
         self,
         name: str = None,
-        matrix: Optional[Matrix] = None,
-        computer_type_id: int = None,
-        question_type: int = None,
-        calculate_count: int = None,
+        data: Union[np.ndarray, Matrix, Any] = None,
+        shot_count: int = None,
         post_process: int = None,
         input_j_file: str = None,
         input_h_file: str = None,
     ):
         """Initialize general task.
-
+        
         Args:
             name: Task name
-            matrix: Input matrix data
-            computer_type_id: Computer type ID
-            question_type: Question type
-            calculate_count: Calculate count
+            data: Input data (np.ndarray, pd.DataFrame, or Matrix)
+            shot_count: Number of calculation iterations
             post_process: Post process flag
-            input_j_file: Input J file URL (for cloud)
-            input_h_file: Input H file URL (for cloud)
+            input_j_file: URL to J matrix file
+            input_h_file: URL to H vector file
         """
         super().__init__(name=name)
-        self._matrix = matrix
-        self._computer_type_id = computer_type_id
-        self._question_type = question_type
-        self._calculate_count = calculate_count
+        self._matrix = _convert_to_matrix(data)
+        self._question_type = self.QUESTION_TYPE
+        self._shot_count = shot_count
         self._post_process = post_process
         self._input_j_file = input_j_file
         self._input_h_file = input_h_file
+
+    @property
+    def name(self) -> Optional[str]:
+        """Get task name."""
+        return self._name
 
     @property
     def matrix(self) -> Optional[Matrix]:
@@ -51,19 +98,20 @@ class GeneralTask(BaseTask):
         return self._matrix
 
     @property
-    def computer_type_id(self) -> Optional[int]:
-        """Get computer type ID."""
-        return self._computer_type_id
-
-    @property
     def question_type(self) -> Optional[int]:
         """Get question type."""
         return self._question_type
 
     @property
+    def shot_count(self) -> Optional[int]:
+        """Get shot count (number of calculation iterations)."""
+        return self._shot_count
+
+    # Backward compatibility alias
+    @property
     def calculate_count(self) -> Optional[int]:
-        """Get calculate count."""
-        return self._calculate_count
+        """Get calculate count (alias for shot_count)."""
+        return self._shot_count
 
     @property
     def post_process(self) -> Optional[int]:
@@ -81,19 +129,15 @@ class GeneralTask(BaseTask):
         return self._input_h_file
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert task to dictionary.
-
-        Returns:
-            Task data as dictionary
-        """
+        """Convert task to dictionary."""
         # Build payload for cloud
+        # Note: "caculateCount" is kept as-is for API compatibility
         payload = {
             "name": self._name,
-            "computerTypeId": self._computer_type_id,
             "inputJFile": self._input_j_file,
             "inputHFile": self._input_h_file,
             "questionType": self._question_type,
-            "caculateCount": self._calculate_count,
+            "caculateCount": self._shot_count,
             "postProcess": self._post_process,
         }
 
@@ -107,28 +151,37 @@ class GeneralTask(BaseTask):
             "payload": payload,
             "csv_string": csv_string,
             "params": {
-                "gear": self._computer_type_id,
                 "type": self._question_type,
             },
         }
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GeneralTask":
-        """Create task from dictionary.
-
-        Args:
-            data: Task data dictionary
-
-        Returns:
-            GeneralTask instance
-        """
+        """Create task from dictionary."""
         payload = data.get("payload", {})
+        shot_count = payload.get("shot_count") or payload.get("caculateCount")
         return cls(
             name=payload.get("name"),
-            computer_type_id=payload.get("computerTypeId"),
             input_j_file=payload.get("inputJFile"),
             input_h_file=payload.get("inputHFile"),
-            question_type=payload.get("questionType"),
-            calculate_count=payload.get("calculateCount"),
+            shot_count=shot_count,
             post_process=payload.get("postProcess"),
         )
+
+
+class MinimalIsingEnergyTask(GeneralTask):
+    """Minimal Ising Energy Task.
+
+    Task for solving ISING problem (minimizing Ising energy).
+    """
+    
+    QUESTION_TYPE = ISING_PROBLEM
+
+
+class QuboTask(GeneralTask):
+    """QUBO Task.
+
+    Task for solving QUBO (Quadratic Unconstrained Binary Optimization) problem.
+    """
+    
+    QUESTION_TYPE = QUBO_PROBLEM

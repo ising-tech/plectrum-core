@@ -1,10 +1,10 @@
 """Base task class for Plectrum SDK."""
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 if TYPE_CHECKING:
-    from plectrum.client.base import BaseClient
+    from plectrum.client.base import BaseSolver
 
 
 class BaseTask(ABC):
@@ -13,6 +13,9 @@ class BaseTask(ABC):
     This class defines the interface that all task types
     must implement.
     """
+
+    # Task type identifier - subclasses should override
+    TASK_TYPE: Optional[str] = None
 
     def __init__(self, name: str = None):
         """Initialize base task.
@@ -42,17 +45,54 @@ class BaseTask(ABC):
         """
         pass
 
-    def solve(self, solver: "BaseClient") -> Dict[str, Any]:
+    @property
+    def task_type(self) -> Optional[str]:
+        """Get task type identifier."""
+        return self.TASK_TYPE
+
+    def solve(self, solver: "BaseSolver") -> Dict[str, Any]:
         """Submit task to solver for solving.
 
         Args:
-            solver: Solver client (CloudClient, LocalClient, etc.)
+            solver: Solver client (CloudSolver, LocalSolver, etc.)
 
         Returns:
             Result dictionary from solver
+
+        Raises:
+            PlectrumError: On any SDK-specific error (re-raised as-is).
+            TaskError: On unexpected errors from the solver.
         """
+        from plectrum.exceptions import PlectrumError, TaskError, ClientError
+
+        # Validate solver supports this task type
+        if hasattr(solver, 'SUPPORTED_TASK_TYPES'):
+            task_classes = solver.SUPPORTED_TASK_TYPES
+            task_type = self.TASK_TYPE
+
+            is_supported = any(
+                t is type(self) or (hasattr(t, 'TASK_TYPE') and t.TASK_TYPE == task_type)
+                for t in task_classes
+            )
+
+            if not is_supported:
+                supported_types = [
+                    t.TASK_TYPE if hasattr(t, 'TASK_TYPE') else str(t)
+                    for t in task_classes
+                ]
+                raise ClientError(
+                    f"Task type '{task_type}' is not supported by "
+                    f"{solver.__class__.__name__}. Supported types: {supported_types}"
+                )
+
         task_data = self.to_dict()
-        result = solver.solve(task_data)
+
+        try:
+            result = solver.solve(task_data)
+        except PlectrumError:
+            raise
+        except Exception as e:
+            raise TaskError(f"Unexpected error during solve: {e}") from e
 
         # Store task_id if available
         if "task_id" in result:

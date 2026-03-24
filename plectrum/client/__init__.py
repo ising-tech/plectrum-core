@@ -1,7 +1,12 @@
 """Client module for Plectrum Core SDK."""
 
-from plectrum.client.base import BaseClient
-from plectrum.client.cloud import CloudClient
-from plectrum.client.local import LocalClient
+from plectrum.client.base import BaseSolver
+from plectrum.client.cloud import CloudSolver
+from plectrum.client.local import LocalSolver, LocalOepoSolver
 
-__all__ = ["BaseClient", "CloudClient", "LocalClient"]
+__all__ = [
+    "BaseSolver",
+    "CloudSolver",
+    "LocalSolver",
+    "LocalOepoSolver",
+]

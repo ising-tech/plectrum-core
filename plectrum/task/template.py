@@ -12,11 +12,13 @@ class TemplateTask(BaseTask):
     optimization problems.
     """
 
+    TASK_TYPE = "template"
+
     def __init__(
         self,
         name: str = None,
         template_id: int = None,
-        computer_type_id: int = None,
+        gear: int = None,
         payload: str = None,
     ):
         """Initialize template task.
@@ -24,12 +26,12 @@ class TemplateTask(BaseTask):
         Args:
             name: Task name
             template_id: Template ID
-            computer_type_id: Computer type ID
+            gear: Self hosted computer type ID,
             payload: Template payload data
         """
         super().__init__(name=name)
         self._template_id = template_id
-        self._computer_type_id = computer_type_id
+        self._gear = gear
         self._payload = payload
 
     @property
@@ -38,9 +40,9 @@ class TemplateTask(BaseTask):
         return self._template_id
 
     @property
-    def computer_type_id(self) -> Optional[int]:
-        """Get computer type ID."""
-        return self._computer_type_id
+    def gear(self) -> Optional[int]:
+        """Self hosted computer type ID."""
+        return self._gear
 
     @property
     def payload(self) -> Optional[str]:
@@ -56,7 +58,7 @@ class TemplateTask(BaseTask):
         payload = {
             "name": self._name,
             "templateId": self._template_id,
-            "computerTypeId": self._computer_type_id,
+            "computerTypeId": self._gear,
             "payload": self._payload,
         }
 
@@ -81,6 +83,6 @@ class TemplateTask(BaseTask):
         return cls(
             name=payload.get("name"),
             template_id=payload.get("templateId"),
-            computer_type_id=payload.get("computerTypeId"),
+            gear=payload.get("computerTypeId"),
             payload=payload.get("payload"),
         )

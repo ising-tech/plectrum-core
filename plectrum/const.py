@@ -21,3 +21,11 @@ ISING_PROBLEM = 2
 # Local solver type strings
 LOCAL_TYPE_QUBO = "binary"
 LOCAL_TYPE_ISING = "spin"
+
+# Gear (gear) modes
+GEAR_FAST = 0      # 快速模式 (Fast mode)
+GEAR_BALANCED = 1  # 均衡模式 (Balanced mode)
+GEAR_PRECISE = 2  # 精准模式 (Precise mode)
+
+# Computer types (solver machines)
+OEPO_ISING_1601 = 1  # OEPO ISING 1601
