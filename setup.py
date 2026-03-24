@@ -7,7 +7,7 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 setup(
     name="plectrum-core",
-    version="0.1.0",
+    version="0.1.1",
     author="HaoJJCleas",
     author_email="haojj@ising.tech",
     description="A unified Python SDK for submitting optimization problems to cloud or local solvers",
