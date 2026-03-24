@@ -1,18 +1,20 @@
 """Result class for Plectrum SDK."""
 
+from plectrum.exceptions import ClientError
+
 
 class Result:
-    """统一的结果类，用于标准化不同求解器的返回结果。
+    """Unified result class for standardizing solver outputs.
 
-    属性:
-        energy: 能量值
-        spin_config: 自旋配置列表
-        time: 计算时间（秒）
-        task_id: 任务ID
-        task_name: 任务名称
-        ok: 是否成功
-        msg: 消息
-        timestamp: 时间戳（毫秒）
+    Attributes:
+        energy: Energy value
+        spin_config: Spin configuration list
+        time: Computation time (seconds)
+        task_id: Task ID
+        task_name: Task name
+        ok: Whether the task succeeded
+        msg: Status message
+        timestamp: Timestamp (milliseconds)
     """
 
     def __init__(
@@ -102,23 +104,33 @@ class Result:
 
         Returns:
             Result 实例
+
+        Raises:
+            ClientError: If *raw_result* is not a dict or contains
+                unparseable fields.
         """
-        result_data = raw_result.get("result", {})
+        if not isinstance(raw_result, dict):
+            raise ClientError(
+                f"Expected dict for local result, got {type(raw_result).__name__}"
+            )
 
-        # 转换时间：毫秒 -> 秒
-        time_ms = result_data.get("isingCalcMs")
-        time_seconds = time_ms / 1000.0 if time_ms is not None else None
+        try:
+            result_data = raw_result.get("result", {})
+            time_ms = result_data.get("isingCalcMs")
+            time_seconds = time_ms / 1000.0 if time_ms is not None else None
 
-        return cls(
-            energy=result_data.get("energy"),
-            spin_config=result_data.get("spin_config"),
-            time=time_seconds,
-            task_id=task_id,
-            task_name=result_data.get("taskName"),
-            ok=result_data.get("ok", True),
-            msg=result_data.get("msg"),
-            timestamp=result_data.get("ts"),
-        )
+            return cls(
+                energy=result_data.get("energy"),
+                spin_config=result_data.get("spin_config"),
+                time=time_seconds,
+                task_id=task_id,
+                task_name=result_data.get("taskName"),
+                ok=result_data.get("ok", True),
+                msg=result_data.get("msg"),
+                timestamp=result_data.get("ts"),
+            )
+        except (TypeError, KeyError, ValueError) as e:
+            raise ClientError(f"Failed to parse local result: {e}") from e
 
     @classmethod
     def from_cloud(cls, raw_result: dict, task_id: str) -> "Result":
@@ -130,14 +142,24 @@ class Result:
 
         Returns:
             Result 实例
+
+        Raises:
+            ClientError: If *raw_result* is not a dict or contains
+                unparseable fields.
         """
-        # 转换时间：字符串如 "0.134s" -> float
+        if not isinstance(raw_result, dict):
+            raise ClientError(
+                f"Expected dict for cloud result, got {type(raw_result).__name__}"
+            )
+
         time_str = raw_result.get("oepo_time")
         time_seconds = None
         if time_str and isinstance(time_str, str):
-            time_seconds = float(time_str.replace("s", ""))
+            try:
+                time_seconds = float(time_str.replace("s", ""))
+            except ValueError as e:
+                raise ClientError(f"Invalid oepo_time format: {time_str!r}") from e
 
-        # Cloud 缺少的字段填入默认值
         import time as time_module
 
         return cls(
@@ -145,11 +167,16 @@ class Result:
             spin_config=raw_result.get("spin_config"),
             time=time_seconds,
             task_id=task_id,
-            task_name=None,  # Cloud API 不返回 task_name
-            ok=True,  # 默认为成功
-            msg="success",  # 默认为成功
-            timestamp=int(time_module.time() * 1000),  # 当前时间戳
+            task_name=None,
+            ok=True,
+            msg="success",
+            timestamp=int(time_module.time() * 1000),
         )
+
+    def __eq__(self, other):
+        if not isinstance(other, Result):
+            return NotImplemented
+        return self.to_dict() == other.to_dict()
 
     def __repr__(self) -> str:
         return (

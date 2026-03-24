@@ -4,11 +4,10 @@ from typing import Any, Dict, Optional, Union
 
 import numpy as np
 
-from plectrum.const import OEPO_ISING_1601, GEAR_PRECISE
-# Import Matrix for type checking and conversion
 from plectrum.matrix import Matrix
 from plectrum.task.base import BaseTask
 from plectrum.const import QUBO_PROBLEM, ISING_PROBLEM
+from plectrum.exceptions import TaskError
 
 
 def _convert_to_matrix(data) -> Optional[Matrix]:
@@ -19,6 +18,9 @@ def _convert_to_matrix(data) -> Optional[Matrix]:
     
     Returns:
         Matrix object or None
+    
+    Raises:
+        TaskError: If *data* is an unsupported type.
     """
     if data is None:
         return None
@@ -41,7 +43,7 @@ def _convert_to_matrix(data) -> Optional[Matrix]:
     if hasattr(data, 'to_csv_string'):
         return data
     
-    raise ValueError(
+    raise TaskError(
         f"data must be np.ndarray, pd.DataFrame, or Matrix, got {type(data)}"
     )
 

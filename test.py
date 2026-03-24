@@ -12,6 +12,7 @@ from plectrum import (
     GEAR_BALANCED,
     GEAR_PRECISE,
     OEPO_ISING_1601,
+    AuthenticationError,
 )
 
 # 读取矩阵数据
@@ -33,8 +34,8 @@ def test_local_solver():
     data = load_data()
     
     # gear now belongs to solver
-    solver = LocalOepoSolver(gear=GEAR_PRECISE)
-    task = QuboTask(name="test_qubo_task", data=data)
+    solver = LocalSolver(gear=GEAR_PRECISE)
+    task = MinimalIsingEnergyTask(name="test_ising_task", data=data)
     
     start_time = time.time()
     result = task.solve(solver=solver)
@@ -71,7 +72,7 @@ def test_local_oepo_solver_ising():
     data = load_data()
     
     # computer_type now belongs to solver (machine type), gear is gear mode
-    solver = LocalOepoSolver(computer_type=OEPO_ISING_1601, gear=GEAR_PRECISE)
+    solver = LocalOepoSolver(gear=GEAR_PRECISE)
     task = MinimalIsingEnergyTask(name="test_ising_task", data=data)
     
     start_time = time.time()
@@ -90,7 +91,7 @@ def test_cloud_solver():
     data = load_data()
     
     # CloudSolver - requires gear
-    solver = CloudSolver(api_key=API_KEY, gear=GEAR_BALANCED)
+    solver = CloudSolver(api_key=API_KEY, computer_type=OEPO_ISING_1601)
     task = QuboTask(name="test_qubo_task", data=data)
     
     start_time = time.time()
@@ -136,14 +137,14 @@ def compare_results():
     except Exception as e:
         print(f"LocalSolver failed: {e}")
         results['LocalSolver'] = None
-    
+
     # Test LocalOepoSolver
     try:
         results['LocalOepoSolver'] = test_local_oepo_solver()
     except Exception as e:
         print(f"LocalOepoSolver failed: {e}")
         results['LocalOepoSolver'] = None
-    
+
     # Test LocalOepoSolver with MinimalIsingEnergyTask
     try:
         results['LocalOepoSolver-Ising'] = test_local_oepo_solver_ising()

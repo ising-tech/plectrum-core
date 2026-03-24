@@ -17,6 +17,11 @@ from plectrum.exceptions import (
     PlectrumError,
     AuthenticationError,
     ClientError,
+    TimeoutError,
+    ConnectionError,
+    TaskError,
+    MatrixError,
+    ValidationError,
 )
 
 __version__ = "0.1.0"
@@ -47,4 +52,9 @@ __all__ = [
     "PlectrumError",
     "AuthenticationError",
     "ClientError",
+    "TimeoutError",
+    "ConnectionError",
+    "TaskError",
+    "MatrixError",
+    "ValidationError",
 ]

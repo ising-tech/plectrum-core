@@ -58,30 +58,41 @@ class BaseTask(ABC):
 
         Returns:
             Result dictionary from solver
+
+        Raises:
+            PlectrumError: On any SDK-specific error (re-raised as-is).
+            TaskError: On unexpected errors from the solver.
         """
+        from plectrum.exceptions import PlectrumError, TaskError, ClientError
+
         # Validate solver supports this task type
         if hasattr(solver, 'SUPPORTED_TASK_TYPES'):
-            # Check if task class is in supported list
             task_classes = solver.SUPPORTED_TASK_TYPES
             task_type = self.TASK_TYPE
-            
-            # Check by class or by TASK_TYPE string
-            is_supported = False
-            for t in task_classes:
-                if t is type(self) or (hasattr(t, 'TASK_TYPE') and t.TASK_TYPE == task_type):
-                    is_supported = True
-                    break
-            
+
+            is_supported = any(
+                t is type(self) or (hasattr(t, 'TASK_TYPE') and t.TASK_TYPE == task_type)
+                for t in task_classes
+            )
+
             if not is_supported:
-                from plectrum.exceptions import ClientError
-                supported_types = [t.TASK_TYPE if hasattr(t, 'TASK_TYPE') else str(t) for t in task_classes]
+                supported_types = [
+                    t.TASK_TYPE if hasattr(t, 'TASK_TYPE') else str(t)
+                    for t in task_classes
+                ]
                 raise ClientError(
-                    f"Task type '{task_type}' is not supported by {solver.__class__.__name__}. "
-                    f"Supported types: {supported_types}"
+                    f"Task type '{task_type}' is not supported by "
+                    f"{solver.__class__.__name__}. Supported types: {supported_types}"
                 )
-        
+
         task_data = self.to_dict()
-        result = solver.solve(task_data)
+
+        try:
+            result = solver.solve(task_data)
+        except PlectrumError:
+            raise
+        except Exception as e:
+            raise TaskError(f"Unexpected error during solve: {e}") from e
 
         # Store task_id if available
         if "task_id" in result:

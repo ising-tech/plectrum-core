@@ -5,8 +5,9 @@ This module provides a simple wrapper around numpy arrays for task data.
 
 import csv
 import numpy as np
-from typing import Optional, Union
 from io import StringIO
+
+from plectrum.exceptions import MatrixError
 
 
 class Matrix:
@@ -20,8 +21,27 @@ class Matrix:
         
         Args:
             data: numpy array
+            
+        Raises:
+            MatrixError: If data is empty, not 2-D, or contains non-numeric values.
         """
-        self._data = np.asarray(data)
+        try:
+            arr = np.asarray(data, dtype=float)
+        except (ValueError, TypeError) as e:
+            raise MatrixError(f"Matrix data must be numeric: {e}") from e
+
+        if arr.size == 0:
+            raise MatrixError("Matrix data must not be empty")
+
+        if arr.ndim != 2:
+            raise MatrixError(
+                f"Matrix data must be 2-D, got {arr.ndim}-D with shape {arr.shape}"
+            )
+
+        if np.isnan(arr).any() or np.isinf(arr).any():
+            raise MatrixError("Matrix data contains NaN or Inf values")
+
+        self._data = arr
 
     @property
     def shape(self) -> tuple:
@@ -54,8 +74,16 @@ class Matrix:
             
         Returns:
             Matrix instance
+            
+        Raises:
+            MatrixError: If file cannot be read or parsed.
         """
-        data = np.loadtxt(file_path, delimiter=',')
+        try:
+            data = np.loadtxt(file_path, delimiter=',')
+        except FileNotFoundError as e:
+            raise MatrixError(f"CSV file not found: {file_path}") from e
+        except Exception as e:
+            raise MatrixError(f"Failed to parse CSV file '{file_path}': {e}") from e
         return cls(data)
 
     @classmethod
@@ -67,8 +95,16 @@ class Matrix:
             
         Returns:
             Matrix instance
+            
+        Raises:
+            MatrixError: If CSV string cannot be parsed.
         """
-        data = np.genfromtxt(StringIO(csv_string), delimiter=',')
+        if not csv_string or not csv_string.strip():
+            raise MatrixError("CSV string must not be empty")
+        try:
+            data = np.genfromtxt(StringIO(csv_string), delimiter=',')
+        except Exception as e:
+            raise MatrixError(f"Failed to parse CSV string: {e}") from e
         return cls(data)
 
     @classmethod
