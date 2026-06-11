@@ -49,12 +49,16 @@ class TestQuboTask(unittest.TestCase):
         self.assertIsNotNone(d["csv_string"])
         self.assertEqual(d["params"]["type"], QUBO_PROBLEM)
         self.assertEqual(d["payload"]["name"], "q1")
+        self.assertFalse(d["payload"]["useCoupon"])
+        self.assertFalse(d["payload"]["useCredit"])
 
     def test_properties(self):
         self.assertEqual(self.task.name, "q1")
         self.assertIsNotNone(self.task.matrix)
         self.assertIsNone(self.task.shot_count)
         self.assertIsNone(self.task.calculate_count)
+        self.assertFalse(self.task.use_coupon)
+        self.assertFalse(self.task.use_credit)
 
 
 class TestMinimalIsingEnergyTask(unittest.TestCase):
@@ -72,6 +76,12 @@ class TestGeneralTaskFromDict(unittest.TestCase):
         self.assertEqual(t.name, "test")
         self.assertEqual(t.shot_count, 100)
 
+    def test_from_dict_payment_flags(self):
+        d = {"payload": {"name": "test", "useCoupon": True, "useCredit": True}}
+        t = GeneralTask.from_dict(d)
+        self.assertTrue(t.use_coupon)
+        self.assertTrue(t.use_credit)
+
 
 class TestGeneralTaskNoData(unittest.TestCase):
 
@@ -84,6 +94,14 @@ class TestGeneralTaskNoData(unittest.TestCase):
         t = GeneralTask(name="f1", input_j_file="http://example.com/f.csv")
         d = t.to_dict()
         self.assertEqual(d["payload"]["inputJFile"], "http://example.com/f.csv")
+
+    def test_with_payment_flags(self):
+        t = GeneralTask(name="paid", use_coupon=True, use_credit=True)
+        d = t.to_dict()
+        self.assertTrue(t.use_coupon)
+        self.assertTrue(t.use_credit)
+        self.assertTrue(d["payload"]["useCoupon"])
+        self.assertTrue(d["payload"]["useCredit"])
 
 
 if __name__ == "__main__":
