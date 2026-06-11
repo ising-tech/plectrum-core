@@ -68,6 +68,8 @@ class GeneralTask(BaseTask):
         post_process: int = None,
         input_j_file: str = None,
         input_h_file: str = None,
+        use_coupon: bool = False,
+        use_credit: bool = False,
     ):
         """Initialize general task.
         
@@ -78,6 +80,8 @@ class GeneralTask(BaseTask):
             post_process: Post process flag
             input_j_file: URL to J matrix file
             input_h_file: URL to H vector file
+            use_coupon: Whether to use a coupon for the cloud task
+            use_credit: Whether to use credit for the cloud task
         """
         super().__init__(name=name)
         self._matrix = _convert_to_matrix(data)
@@ -86,6 +90,8 @@ class GeneralTask(BaseTask):
         self._post_process = post_process
         self._input_j_file = input_j_file
         self._input_h_file = input_h_file
+        self._use_coupon = bool(use_coupon)
+        self._use_credit = bool(use_credit)
 
     @property
     def name(self) -> Optional[str]:
@@ -128,6 +134,16 @@ class GeneralTask(BaseTask):
         """Get input H file URL."""
         return self._input_h_file
 
+    @property
+    def use_coupon(self) -> bool:
+        """Get whether this task should use a coupon."""
+        return self._use_coupon
+
+    @property
+    def use_credit(self) -> bool:
+        """Get whether this task should use credit."""
+        return self._use_credit
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert task to dictionary."""
         # Build payload for cloud
@@ -139,6 +155,8 @@ class GeneralTask(BaseTask):
             "questionType": self._question_type,
             "caculateCount": self._shot_count,
             "postProcess": self._post_process,
+            "useCoupon": self._use_coupon,
+            "useCredit": self._use_credit,
         }
 
         # Include CSV string for local solver
@@ -166,6 +184,8 @@ class GeneralTask(BaseTask):
             input_h_file=payload.get("inputHFile"),
             shot_count=shot_count,
             post_process=payload.get("postProcess"),
+            use_coupon=payload.get("useCoupon", False),
+            use_credit=payload.get("useCredit", False),
         )
 
 

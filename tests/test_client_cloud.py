@@ -126,6 +126,28 @@ class TestCloudSolverSolve(unittest.TestCase):
         })
         self.assertEqual(result["task_id"], "task-1")
 
+    @mock.patch.object(CloudSolver, "_poll_for_result")
+    @mock.patch.object(CloudSolver, "_request")
+    def test_general_passes_payment_flags_through(self, mock_req, mock_poll):
+        mock_req.return_value = {"data": {"id": "task-1"}}
+        mock_poll.return_value = {"result": {}, "task_id": "task-1", "status": 1}
+
+        result = self.solver.solve({
+            "task_type": "general",
+            "csv_string": None,
+            "payload": {
+                "name": "test",
+                "useCoupon": True,
+                "useCredit": True,
+            },
+            "params": {},
+        })
+
+        request_json = mock_req.call_args.kwargs["json"]
+        self.assertEqual(result["task_id"], "task-1")
+        self.assertTrue(request_json["useCoupon"])
+        self.assertTrue(request_json["useCredit"])
+
     @mock.patch.object(CloudSolver, "_request")
     def test_general_no_task_id_raises(self, mock_req):
         mock_req.return_value = {"data": {}}
