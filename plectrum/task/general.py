@@ -146,6 +146,9 @@ class GeneralTask(BaseTask):
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert task to dictionary."""
+        return self._to_dict(include_csv=True)
+
+    def _to_dict(self, include_csv: bool) -> Dict[str, Any]:
         # Build payload for cloud
         # Note: "caculateCount" is kept as-is for API compatibility
         payload = {
@@ -161,7 +164,7 @@ class GeneralTask(BaseTask):
 
         # Include CSV string for local solver
         csv_string = None
-        if self._matrix is not None:
+        if include_csv and self._matrix is not None:
             csv_string = self._matrix.to_csv_string()
 
         return {

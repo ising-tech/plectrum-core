@@ -12,6 +12,7 @@ from plectrum.const import (
     GEAR_BALANCED,
     GEAR_PRECISE,
     OEPO_ISING_1601,
+    OEPO_ISING_4095,
 )
 from plectrum.exceptions import (
     PlectrumError,
@@ -24,7 +25,7 @@ from plectrum.exceptions import (
     ValidationError,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.1.3"
 
 __all__ = [
     # Matrix
@@ -48,6 +49,7 @@ __all__ = [
     "GEAR_BALANCED",
     "GEAR_PRECISE",
     "OEPO_ISING_1601",
+    "OEPO_ISING_4095",
     # Exceptions
     "PlectrumError",
     "AuthenticationError",

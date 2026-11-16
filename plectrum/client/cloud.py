@@ -3,6 +3,9 @@
 import os
 import time
 import uuid
+from io import BytesIO
+
+import numpy as np
 import requests
 
 from plectrum.client.base import BaseSolver
@@ -11,6 +14,8 @@ from plectrum.const import (
     DEFAULT_API_KEY_ENV,
     DEFAULT_CHANNEL,
     OEPO_ISING_1601,
+    OEPO_ISING_4095,
+    QUBO_PROBLEM,
     GEAR_PRECISE
 )
 from plectrum.exceptions import (
@@ -19,6 +24,7 @@ from plectrum.exceptions import (
     TimeoutError,
     ConnectionError,
 )
+from plectrum.matrix import Matrix
 from plectrum.result import Result
 from plectrum.task import GeneralTask, MinimalIsingEnergyTask, QuboTask, TemplateTask
 
@@ -26,6 +32,7 @@ from plectrum.task import GeneralTask, MinimalIsingEnergyTask, QuboTask, Templat
 # Default polling configuration
 DEFAULT_POLL_INTERVAL = 2  # seconds
 DEFAULT_TIMEOUT = 300  # seconds (5 minutes)
+MAX_NPZ_UPLOAD_BYTES = 100 * 1024 * 1024
 
 
 class CloudSolver(BaseSolver):
@@ -52,7 +59,7 @@ class CloudSolver(BaseSolver):
             api_key: API key for authentication.
                     If not provided, will try to get from env var PLECTRUM_API_KEY.
             host: Cloud API base URL.
-            computer_type: Computer type (machine ID).
+            computer_type: Machine ID. Use OEPO_ISING_4095 for S4095.
             gear: Gear mode (0=fast, 1=balanced, 2=precise).
             poll_interval: Polling interval in seconds (default: 2).
             timeout: Maximum wait time in seconds (default: 300).
@@ -121,6 +128,14 @@ class CloudSolver(BaseSolver):
 
     # -- solve dispatch --
 
+    def _prepare_task(self, task) -> dict:
+        if (self._computer_type == OEPO_ISING_4095 and isinstance(task, GeneralTask)
+                and isinstance(task.matrix, Matrix)):
+            task_data = task._to_dict(include_csv=False)
+            task_data["matrix"] = task.matrix
+            return task_data
+        return super()._prepare_task(task)
+
     def solve(self, task_data: dict) -> dict:
         """Submit task to cloud solver and wait for result."""
         task_type = task_data.get("task_type", "general")
@@ -139,13 +154,21 @@ class CloudSolver(BaseSolver):
         """Create and submit a general task to cloud solver."""
         payload = task_data.get("payload", {}).copy()
         csv_string = task_data.get("csv_string")
+        matrix = task_data.get("matrix") if self._computer_type == OEPO_ISING_4095 else None
 
-        if csv_string:
-            filename = payload.get("name", "task") + ".csv"
+        if matrix is not None:
+            upload_result = self._upload_file(
+                file_path_or_bytes=self._encode_s4095_matrix(matrix, payload.get("questionType")),
+                original_filename="matrix.npz",
+            )
+        elif csv_string:
+            filename = (payload.get("name") or "task") + ".csv"
             upload_result = self._upload_file(
                 file_path_or_bytes=csv_string.encode('utf-8'),
                 original_filename=filename,
             )
+
+        if matrix is not None or csv_string:
             file_url = upload_result.get("data", {}).get("fileUrl")
             if not file_url:
                 raise ClientError("Upload succeeded but no fileUrl returned")
@@ -161,6 +184,26 @@ class CloudSolver(BaseSolver):
             raise ClientError("Failed to get task ID from response")
 
         return self._poll_for_result(task_id)
+
+    @staticmethod
+    def _encode_s4095_matrix(matrix: Matrix, question_type: int) -> bytes:
+        data = matrix.data
+        rows, columns = data.shape
+        limit = 4094 if question_type == QUBO_PROBLEM else 4095
+        if rows != columns or not 1 <= rows <= limit:
+            raise ClientError(f"S4095 requires a square matrix with 1 to {limit} rows")
+
+        # A full-size float32 matrix fits the upload limit. Preserve coefficients
+        # exactly when reducing the storage dtype.
+        with np.errstate(over="ignore", under="ignore"):
+            compact = data.astype(np.float32)
+        if np.array_equal(compact, data):
+            data = compact
+        with BytesIO() as archive:
+            np.savez_compressed(archive, matrix=data)
+            if archive.tell() > MAX_NPZ_UPLOAD_BYTES:
+                raise ClientError("The S4095 NPZ matrix exceeds the 100 MiB upload limit")
+            return archive.getvalue()
 
     # -- template task --
 
@@ -186,7 +229,6 @@ class CloudSolver(BaseSolver):
             ClientError: If the completed task has no result data.
         """
         start_time = time.time()
-        completed_statuses = [1, 2, 3]
 
         while True:
             elapsed = time.time() - start_time
@@ -197,9 +239,14 @@ class CloudSolver(BaseSolver):
 
             response = self.get_task(task_id)
             status = response.get("status")
+            result_data = response.get("result")
 
-            if status in completed_statuses:
-                result_data = response.get("result")
+            if status == 3:
+                message = response.get("message") or "Task failed or was cancelled"
+                raise ClientError(f"Task {task_id}: {message}")
+
+            # Older servers can return a completed result with status 1.
+            if status == 2 or (status == 1 and result_data):
                 if result_data is None:
                     message = response.get("message", "Task failed")
                     raise ClientError(f"Task failed: {message}")
@@ -238,10 +285,9 @@ class CloudSolver(BaseSolver):
 
         try:
             files = {"file": (original_filename, file_data)}
-            headers = {"Authorization": self._api_key, "channel": DEFAULT_CHANNEL}
             oss_response = requests.post(
                 signature_data["host"], data=form_data,
-                files=files, headers=headers,
+                files=files,
             )
             if oss_response.status_code != 200:
                 raise ClientError(
@@ -262,7 +308,10 @@ class CloudSolver(BaseSolver):
     @staticmethod
     def _build_oss_form(signature_data: dict, filename: str) -> dict:
         """Build the OSS upload form-data dict."""
+        prefix = (signature_data.get("dir") or "").rstrip("/")
         file_key = f"{str(uuid.uuid4())[:8]}/{filename}"
+        if prefix:
+            file_key = f"{prefix}/{file_key}"
         return {
             "success_action_status": "200",
             "policy": signature_data["policy"],

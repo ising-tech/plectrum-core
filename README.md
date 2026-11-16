@@ -89,6 +89,35 @@ task_info = cloud_solver.get_task("task-id")
 | `poll_interval` | `int` | `2` | Polling interval (seconds) |
 | `timeout` | `int` | `300` | Max wait time (seconds) |
 
+##### S4095 cloud solver
+
+Install `plectrum-core>=0.1.3` and set `PLECTRUM_API_KEY` to your IsingQ API key.
+The S4095 supports up to 4,095 Ising spins or 4,094 QUBO variables. Select it
+with `computer_type=OEPO_ISING_4095` (API `computerTypeId=8`).
+
+```python
+import numpy as np
+from plectrum import CloudSolver, MinimalIsingEnergyTask, OEPO_ISING_4095
+
+solver = CloudSolver(computer_type=OEPO_ISING_4095)
+task = MinimalIsingEnergyTask(
+    name="s4095-ising-example",
+    data=np.array([[0, -1], [-1, 0]], dtype=np.int8),
+    shot_count=1,
+    post_process=1,
+)
+result = task.solve(solver)
+print(result["task_id"], result["result"]["energy"])
+```
+
+Use `QuboTask` for QUBO. Provide a square J matrix of finite real numbers.
+S4095 runs one shot with `post_process=1` and accepts only the J matrix.
+The SDK uploads in-memory matrices as compressed NPZ files with a `matrix`
+array. For an already uploaded CSV or NPZ, pass its IsingQ file URL as
+`input_j_file`. The cloud file limits are 30 MiB for CSV and 100 MiB for NPZ.
+
+Production machine IDs are listed in the [cloud machine catalog](https://api.isingq.com/public/computer-types).
+
 #### LocalSolver
 
 Runs Simulated Annealing locally — no network required.
@@ -426,6 +455,34 @@ except AuthenticationError as e:
 | `gear` | `int` | `GEAR_PRECISE` | 档位模式 (0/1/2) |
 | `poll_interval` | `int` | `2` | 轮询间隔（秒） |
 | `timeout` | `int` | `300` | 最大等待时间（秒） |
+
+##### 云端光电伊辛机 S4095
+
+安装 `plectrum-core>=0.1.3`，并通过环境变量 `PLECTRUM_API_KEY` 配置伊辛云 API Key。
+S4095 支持最多 4095 个 Ising 自旋或 4094 个 QUBO 变量。
+通过 `computer_type=OEPO_ISING_4095` 选择该机型，对应 API 字段 `computerTypeId=8`。
+
+```python
+import numpy as np
+from plectrum import CloudSolver, MinimalIsingEnergyTask, OEPO_ISING_4095
+
+solver = CloudSolver(computer_type=OEPO_ISING_4095)
+task = MinimalIsingEnergyTask(
+    name="s4095-ising-example",
+    data=np.array([[0, -1], [-1, 0]], dtype=np.int8),
+    shot_count=1,
+    post_process=1,
+)
+result = task.solve(solver)
+print(result["task_id"], result["result"]["energy"])
+```
+
+QUBO 任务使用 `QuboTask`。J 矩阵须为有限实数方阵。S4095 每次执行一轮
+（`shot_count=1`），固定 `post_process=1`，仅接收 J 矩阵。
+SDK 会将内存矩阵以包含 `matrix` 数组的压缩 NPZ 上传。也可将已上传的
+CSV 或 NPZ 文件地址传给 `input_j_file`。云端文件大小上限为 CSV 30 MiB、NPZ 100 MiB。
+
+生产环境的机型 ID 可通过[云端机型目录](https://api.isingq.com/public/computer-types)查询。
 
 #### LocalSolver
 

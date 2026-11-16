@@ -29,7 +29,7 @@ class BaseSolver(ABC):
         Args:
             api_key: API key for authentication
             host: Base URL for the solver service
-            computer_type: Computer type (machine ID, e.g., OEPO_ISING_1601=1601)
+            computer_type: Computer type (machine ID)
             gear: Gear mode (0=fast, 1=balanced, 2=precise)
         """
         self._api_key = api_key
@@ -80,6 +80,10 @@ class BaseSolver(ABC):
                 f"Task type '{task_type}' is not supported by {self.__class__.__name__}. "
                 f"Supported types: {supported_types}"
             )
+
+    def _prepare_task(self, task: BaseTask) -> Dict[str, Any]:
+        """Serialize a task for this solver."""
+        return task.to_dict()
 
     @abstractmethod
     def solve(self, task_data: Dict[str, Any]) -> Dict[str, Any]:

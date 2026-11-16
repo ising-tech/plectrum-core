@@ -63,6 +63,7 @@ class BaseTask(ABC):
             PlectrumError: On any SDK-specific error (re-raised as-is).
             TaskError: On unexpected errors from the solver.
         """
+        from plectrum.client.base import BaseSolver
         from plectrum.exceptions import PlectrumError, TaskError, ClientError
 
         # Validate solver supports this task type
@@ -85,7 +86,7 @@ class BaseTask(ABC):
                     f"{solver.__class__.__name__}. Supported types: {supported_types}"
                 )
 
-        task_data = self.to_dict()
+        task_data = solver._prepare_task(self) if isinstance(solver, BaseSolver) else self.to_dict()
 
         try:
             result = solver.solve(task_data)

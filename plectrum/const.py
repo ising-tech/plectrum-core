@@ -29,3 +29,4 @@ GEAR_PRECISE = 2  # 精准模式 (Precise mode)
 
 # Computer types (solver machines)
 OEPO_ISING_1601 = 1  # OEPO ISING 1601
+OEPO_ISING_4095 = 8  # Cloud machine ID for S4095
